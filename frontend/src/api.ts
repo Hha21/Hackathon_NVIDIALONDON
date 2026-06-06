@@ -1,7 +1,9 @@
 // Typed API client mirroring the shared data contracts (README).
 // Base URL from VITE_API_URL, defaults to local backend.
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// Empty base => same-origin relative calls, handled by the Vite dev proxy
+// (see vite.config.ts). Override with VITE_API_URL for a non-proxied build.
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 // ---- Contract types (mirror backend/schemas.py) ----
 export type ForecastHourly = {
@@ -89,6 +91,36 @@ export async function postScenario(s: Scenario): Promise<ScenarioResponse> {
   });
   if (!r.ok) throw new Error(`scenario ${r.status}`);
   return r.json();
+}
+
+// ---- Live weather (Open-Meteo, keyless) ----
+// Pulls current conditions for a lat/lon (default Lewisham centroid) and maps
+// them onto the scenario's coarse wind/rain buckets + temperature.
+export type LiveWeather = {
+  wind: "none" | "moderate" | "high";
+  rain: "none" | "low" | "heavy";
+  temperature: number;
+  windKmh: number;
+  precipMm: number;
+};
+
+export async function getLiveWeather(
+  lat = 51.45,
+  lon = -0.02
+): Promise<LiveWeather> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,precipitation,wind_speed_10m`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`weather ${r.status}`);
+  const j = await r.json();
+  const c = j.current ?? {};
+  const windKmh = Number(c.wind_speed_10m ?? 0);
+  const precipMm = Number(c.precipitation ?? 0);
+  const temperature = Number(c.temperature_2m ?? 0);
+  const wind = windKmh >= 30 ? "high" : windKmh >= 12 ? "moderate" : "none";
+  const rain = precipMm >= 2.5 ? "heavy" : precipMm > 0 ? "low" : "none";
+  return { wind, rain, temperature, windKmh, precipMm };
 }
 
 export async function postAsk(query: string): Promise<AskResponse> {
