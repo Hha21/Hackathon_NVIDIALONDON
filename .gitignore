@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+.env
+.env.local
+
+# Data (large; regenerate locally)
+data/raw/
+*.parquet
+
+# OS
+.DS_Store
