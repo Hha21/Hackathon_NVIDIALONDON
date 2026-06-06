@@ -6,23 +6,44 @@
 //   Public agent: connect with just the agent id (enable_auth=false), no signed
 //   URL. Param keys are camelCase (the ElevenLabs CLI camelCases them on push):
 //   focus_ward{wardName}, highlight_risk{minRisk}, reset_view{}.
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useConversation, useConversationClientTool } from "@elevenlabs/react";
-
-type WardLite = { ward_id: string; ward_name: string };
+import type { ForecastHourly, WardForecast } from "../api";
 
 export type VoiceAgentProps = {
-  wards: WardLite[];
+  // Full forecast (hourly per ward) so Group A tools can read the numbers.
+  wards: WardForecast[];
+  // Hour currently on the timeline scrubber — all reads are "at this hour".
+  hour: number;
   onFocus: (wardId: string) => void;
   onReset: () => void;
   onHighlight: (minRisk: number) => void;
+  // rank_hotspots rings the top-N wards on the map.
+  onHighlightWards: (ids: string[]) => void;
 };
 
 const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID as string | undefined;
 
 type LogEntry = { kind: "you" | "agent" | "action"; text: string };
 
-export default function VoiceAgent({ wards, onFocus, onReset, onHighlight }: VoiceAgentProps) {
+// --- speech formatters (pure) ---
+const fmtType = (t: string) => (t ?? "").replace(/_/g, " ").trim() || "mixed";
+const pct = (r: number) => `${Math.round((r ?? 0) * 100)}%`;
+const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
+const ordinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+};
+
+export default function VoiceAgent({
+  wards,
+  hour,
+  onFocus,
+  onReset,
+  onHighlight,
+  onHighlightWards,
+}: VoiceAgentProps) {
   const [log, setLog] = useState<LogEntry[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +55,7 @@ export default function VoiceAgent({ wards, onFocus, onReset, onHighlight }: Voi
 
   // exact -> substring -> reverse-substring match on the spoken ward name
   const matchWard = useCallback(
-    (name: string): WardLite | undefined => {
+    (name: string): WardForecast | undefined => {
       const q = (name ?? "").toLowerCase().trim();
       if (!q) return undefined;
       return (
@@ -44,6 +65,22 @@ export default function VoiceAgent({ wards, onFocus, onReset, onHighlight }: Voi
       );
     },
     [wards]
+  );
+
+  // hourly entry for a ward at the scrubber hour (falls back to first slot)
+  const hourlyAt = useCallback(
+    (w: WardForecast): ForecastHourly =>
+      w.hourly.find((h) => h.hour === hour) ?? w.hourly[0],
+    [hour]
+  );
+
+  // all wards sorted by risk at the current hour (recomputed when hour changes)
+  const ranked = useMemo(
+    () =>
+      [...wards].sort(
+        (a, b) => (hourlyAt(b)?.risk_score ?? 0) - (hourlyAt(a)?.risk_score ?? 0)
+      ),
+    [wards, hourlyAt]
   );
 
   // --- client tools (handlers always see latest closure via the hook's ref) ---
@@ -69,6 +106,76 @@ export default function VoiceAgent({ wards, onFocus, onReset, onHighlight }: Voi
     onHighlight(t);
     push({ kind: "action", text: `highlight ≥ ${t.toFixed(2)}` });
     return `Highlighting wards at risk ${t.toFixed(2)} and above.`;
+  });
+
+  // --- Group A: ward intelligence (read in-memory forecast, speak numbers) ---
+  useConversationClientTool("get_ward_info", (p: { wardName?: string }) => {
+    const w = matchWard(p?.wardName ?? "");
+    if (!w) {
+      push({ kind: "action", text: `no match for "${p?.wardName}"` });
+      return `No ward matching "${p?.wardName}".`;
+    }
+    const he = hourlyAt(w);
+    const rank = ranked.findIndex((x) => x.ward_id === w.ward_id) + 1;
+    push({ kind: "action", text: `info → ${w.ward_name}` });
+    return `${w.ward_name} at ${hh(hour)}: risk ${pct(he.risk_score)}, about ${Math.round(
+      he.expected_count
+    )} expected, mostly ${fmtType(he.dominant_type)}. Ranked ${ordinal(rank)} of ${
+      wards.length
+    } this hour.`;
+  });
+
+  useConversationClientTool("compare_wards", (p: { wardA?: string; wardB?: string }) => {
+    const a = matchWard(p?.wardA ?? "");
+    const b = matchWard(p?.wardB ?? "");
+    if (!a || !b) {
+      const miss = !a ? p?.wardA : p?.wardB;
+      push({ kind: "action", text: `no match for "${miss}"` });
+      return `No ward matching "${miss}".`;
+    }
+    const ha = hourlyAt(a);
+    const hb = hourlyAt(b);
+    const higher = ha.risk_score >= hb.risk_score ? a : b;
+    push({ kind: "action", text: `compare → ${a.ward_name} vs ${b.ward_name}` });
+    return `${higher.ward_name} is higher risk. ${a.ward_name} ${pct(ha.risk_score)} (${Math.round(
+      ha.expected_count
+    )} expected, ${fmtType(ha.dominant_type)}); ${b.ward_name} ${pct(hb.risk_score)} (${Math.round(
+      hb.expected_count
+    )} expected, ${fmtType(hb.dominant_type)}).`;
+  });
+
+  useConversationClientTool("rank_hotspots", (p: { n?: number }) => {
+    const n = Math.max(1, Math.min(20, Math.round(typeof p?.n === "number" ? p.n : 5)));
+    // dedupe duplicate ward_ids before ringing (see expansion plan §7)
+    const seen = new Set<string>();
+    const top: WardForecast[] = [];
+    for (const w of ranked) {
+      if (seen.has(w.ward_id)) continue;
+      seen.add(w.ward_id);
+      top.push(w);
+      if (top.length >= n) break;
+    }
+    onHighlightWards(top.map((w) => w.ward_id));
+    push({ kind: "action", text: `top ${top.length} hotspots ringed` });
+    const list = top
+      .map((w, i) => `${i + 1}. ${w.ward_name} ${pct(hourlyAt(w).risk_score)}`)
+      .join("; ");
+    return `Top ${top.length} hotspots at ${hh(hour)}: ${list}.`;
+  });
+
+  useConversationClientTool("ward_trend", (p: { wardName?: string }) => {
+    const w = matchWard(p?.wardName ?? "");
+    if (!w) {
+      push({ kind: "action", text: `no match for "${p?.wardName}"` });
+      return `No ward matching "${p?.wardName}".`;
+    }
+    const now = hourlyAt(w);
+    const peak = w.hourly.reduce((m, e) => (e.risk_score > m.risk_score ? e : m), w.hourly[0]);
+    const trough = w.hourly.reduce((m, e) => (e.risk_score < m.risk_score ? e : m), w.hourly[0]);
+    push({ kind: "action", text: `trend → ${w.ward_name}` });
+    return `${w.ward_name}: now ${pct(now.risk_score)} at ${hh(hour)}. Peaks ${pct(
+      peak.risk_score
+    )} around ${hh(peak.hour)}, lowest ${pct(trough.risk_score)} at ${hh(trough.hour)}.`;
   });
 
   const conversation = useConversation({

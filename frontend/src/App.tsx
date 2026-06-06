@@ -4,7 +4,7 @@
 //   when a scenario is run its scenario_risk overlays the surface. If the
 //   backend is unreachable it falls back to a bundled forecast so the surface
 //   always renders (offline demo safety).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getForecast, getHealth } from "./api";
 import type { ForecastResponse, Health } from "./api";
 import RiskMap3D from "./components/RiskMap3D";
@@ -68,11 +68,6 @@ export default function App() {
   const [focusWardId, setFocusWardId] = useState<string | null>(null);
   const [highlightSet, setHighlightSet] = useState<Set<string> | undefined>(undefined);
 
-  const wardsLite = useMemo(
-    () => (forecast?.wards ?? []).map((w) => ({ ward_id: w.ward_id, ward_name: w.ward_name })),
-    [forecast]
-  );
-
   const onFocus = useCallback((wardId: string) => {
     setHighlightSet(undefined);
     setFocusWardId(wardId);
@@ -98,6 +93,12 @@ export default function App() {
     },
     [forecast, hour]
   );
+
+  // Voice "rank_hotspots": ring an explicit set of ward ids on the map.
+  const onHighlightWards = useCallback((ids: string[]) => {
+    setFocusWardId(null);
+    setHighlightSet(new Set(ids));
+  }, []);
 
   return (
     <div
@@ -200,10 +201,12 @@ export default function App() {
       >
         <ScenarioPanel onForecastUpdated={onForecastUpdated} />
         <VoiceAgent
-          wards={wardsLite}
+          wards={forecast?.wards ?? []}
+          hour={hour}
           onFocus={onFocus}
           onReset={onReset}
           onHighlight={onHighlight}
+          onHighlightWards={onHighlightWards}
         />
       </aside>
 

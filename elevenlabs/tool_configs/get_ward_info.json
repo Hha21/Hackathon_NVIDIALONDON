@@ -1,0 +1,21 @@
+{
+    "name": "get_ward_info",
+    "description": "Look up the live fire-risk stats for one named London ward at the hour currently on the timeline. Returns the risk level, the number of expected incidents, the dominant incident type, and the ward's risk rank across London. Call whenever the operator asks how risky an area is, what's happening there, or for its numbers.",
+    "type": "client",
+    "expects_response": true,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "wardName": {
+                "type": "string",
+                "description": "Name of the London ward to look up, e.g. West End, Marylebone, Whitechapel, Soho, Bloomsbury."
+            }
+        },
+        "required": ["wardName"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

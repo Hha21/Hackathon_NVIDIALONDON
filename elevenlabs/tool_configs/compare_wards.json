@@ -1,0 +1,25 @@
+{
+    "name": "compare_wards",
+    "description": "Compare the live fire risk of two named London wards at the hour on the timeline. Says which ward is higher risk and gives both wards' risk, expected incident count, and dominant incident type. Call whenever the operator asks to compare, contrast, or pick between two areas.",
+    "type": "client",
+    "expects_response": true,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "wardA": {
+                "type": "string",
+                "description": "First London ward to compare, e.g. Whitechapel."
+            },
+            "wardB": {
+                "type": "string",
+                "description": "Second London ward to compare, e.g. Soho."
+            }
+        },
+        "required": ["wardA", "wardB"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

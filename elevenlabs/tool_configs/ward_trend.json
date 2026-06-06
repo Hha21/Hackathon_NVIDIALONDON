@@ -1,0 +1,21 @@
+{
+    "name": "ward_trend",
+    "description": "Describe how one named London ward's fire risk changes across the 24-hour forecast: its risk now, its peak risk and what hour it peaks, and its lowest point. Call whenever the operator asks about the trend, the trajectory, when an area gets worse or peaks, or what to expect later.",
+    "type": "client",
+    "expects_response": true,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "wardName": {
+                "type": "string",
+                "description": "Name of the London ward to trend, e.g. Marylebone."
+            }
+        },
+        "required": ["wardName"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

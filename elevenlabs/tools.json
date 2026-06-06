@@ -14,6 +14,26 @@
             "type": "client",
             "config": "tool_configs/highlight_risk.json",
             "id": "tool_1901ktesyst3edptv7t0mhpa9tb3"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/get_ward_info.json",
+            "id": "tool_7601ktexe4g4fwwa3hvd89rz1etz"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/compare_wards.json",
+            "id": "tool_6201ktexe5adfd29twvs3mgemykp"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/rank_hotspots.json",
+            "id": "tool_7801ktexe69ef30srktkdrdnwr69"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/ward_trend.json",
+            "id": "tool_4201ktexe74qesbb9am1x5temnga"
         }
     ]
 }
