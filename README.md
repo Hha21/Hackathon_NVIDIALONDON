@@ -174,7 +174,7 @@ flowchart LR
 
 ### DGX Spark handoff — what crosses the GPU boundary
 
-The only thing the DGX Spark hands to the rest of the system is a single file: `outputs/forecast_24h.json`. All GPU work (preprocessing, training, rollout inference) happens **on the Spark**; the backend and frontend never touch CUDA. The backend hot-reloads the JSON on `mtime` change — the Spark overwrites the file, the next API request serves it with no restart and no code change.
+The DGX Spark hands off a single file to the rest of the system: `outputs/forecast_24h.json`. All GPU work (preprocessing, training, rollout inference) happens **on the Spark**; the backend and frontend never touch CUDA. The backend hot-reloads the JSON on `mtime` change — the Spark overwrites the file, the next API request serves it with no restart and no code change.
 
 This is the design point that makes the real-time expansion cheap: **swapping replayed data for a live feed is a zero-code file swap** — both producers conform to the same `WardForecast` schema. The backend can also trigger generation on demand: `POST /api/forecast/generate` SSHes into the Spark, runs `src.infer`, and `scp`s the fresh JSON back (job-polled via `GET /api/forecast/generate/{job_id}`).
 
