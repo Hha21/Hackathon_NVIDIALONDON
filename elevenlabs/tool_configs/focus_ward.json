@@ -1,0 +1,21 @@
+{
+    "name": "focus_ward",
+    "description": "Zoom the map camera to a named London ward and light up a glowing border around it. Call whenever the operator asks to see, zoom to, focus on, or inspect a specific area or ward.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "wardName": {
+                "type": "string",
+                "description": "Name of the London ward to focus on, e.g. Catford, Forest Hill, Downham, New Cross, Sydenham, Blackheath."
+            }
+        },
+        "required": ["wardName"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

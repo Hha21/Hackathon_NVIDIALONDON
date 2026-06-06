@@ -1,0 +1,371 @@
+/* Design language: Nothing Technology.
+   Pure black, hairline structure, one red accent, dot-matrix display type
+   (Doto) for headline/numeric moments, monospace for technical labels.
+   Restraint over decoration — no glow, no glass, no gradients in the chrome. */
+@import url("https://fonts.googleapis.com/css2?family=Doto:wght@500;700;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --text: #ffffff;
+  --text-sec: #8d8d8d;
+  --text-mut: #555555;
+  --accent: #ff6a1a; /* app ember orange */
+  --accent-hot: #ff3d2e;
+  --accent-dim: rgba(255, 106, 26, 0.16);
+
+  /* risk ramp (data viz only — chrome stays monochrome) */
+  --r-green: #2bd47d;
+  --r-amber: #f5c518;
+  --r-red: #ff3d2e;
+
+  --font-dot: "Doto", "JetBrains Mono", monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-body: "Inter", system-ui, sans-serif;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg);
+}
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- surfaces ---------- */
+.panel {
+  position: relative;
+  background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0) 120px
+    ),
+    var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- typography ---------- */
+.dot {
+  font-family: var(--font-dot);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-mut);
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+}
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+}
+
+/* red accent dot — Nothing's signature marker */
+.led {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(255, 106, 26, 0.7);
+}
+
+/* spinner — shown while a Spark job runs */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* VoiceAgent mic button glow while the agent is speaking */
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 14px #27e0ff;
+  }
+  50% {
+    box-shadow: 0 0 30px #27e0ff;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.18s var(--ease), color 0.18s, border-color 0.18s,
+    transform 0.12s var(--ease), opacity 0.18s;
+  color: var(--text);
+  background: transparent;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.btn.full {
+  width: 100%;
+}
+.btn.sm {
+  height: 34px;
+  font-size: 11px;
+  padding: 0 14px;
+}
+/* primary — clean white pill with subtle sheen */
+.btn.primary {
+  background: linear-gradient(180deg, #ffffff, #ededed);
+  color: #000;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.btn.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffffff, #dcdcdc);
+}
+/* accent — ember, reserved for the hero action */
+.btn.accent {
+  background: linear-gradient(180deg, #ff8038, var(--accent));
+  color: #1c0a02;
+  border-color: rgba(255, 138, 71, 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 6px 20px -10px rgba(255, 106, 26, 0.7);
+}
+.btn.accent:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ff8c45, #ff741f);
+}
+/* ghost — hairline outline */
+.btn.ghost {
+  border-color: var(--line-strong);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+  color: var(--text);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- segmented control ---------- */
+.seg {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-mut);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s, transform 0.12s var(--ease);
+}
+.seg:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.seg:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.seg.on {
+  border-color: rgba(255, 106, 26, 0.45);
+  color: var(--text);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 106, 26, 0.12),
+    rgba(255, 106, 26, 0.02)
+  );
+}
+.seg.on::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ---------- status pill ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-sec);
+}
+.pill.live {
+  border-color: rgba(255, 106, 26, 0.45);
+  color: var(--text);
+}
+
+/* ---------- form fields ---------- */
+.field {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition: border-color 0.18s;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+.field:disabled {
+  opacity: 0.45;
+}
+
+/* ---------- range slider (Apple-style) ---------- */
+/* --fill (0–100) is set inline per-input to paint the filled portion. */
+input[type="range"].nt-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px; /* hit area; visual track drawn via background */
+  background: transparent;
+  cursor: pointer;
+}
+/* WebKit: track + thumb */
+input[type="range"].nt-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+      90deg,
+      #ff7e33 0,
+      var(--accent) calc(var(--fill, 0) * 1%),
+      transparent calc(var(--fill, 0) * 1%)
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.14));
+}
+input[type="range"].nt-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -4px; /* center 14px capsule on 6px track */
+  width: 26px;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff, #e6e6e6);
+  border: 0.5px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 0.12s var(--ease), box-shadow 0.18s;
+}
+input[type="range"].nt-range:hover::-webkit-slider-thumb {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+input[type="range"].nt-range:active::-webkit-slider-thumb {
+  transform: scaleX(1.06);
+}
+/* Firefox: track + progress + thumb */
+input[type="range"].nt-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.14));
+}
+input[type="range"].nt-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff7e33, var(--accent));
+}
+input[type="range"].nt-range::-moz-range-thumb {
+  width: 26px;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff, #e6e6e6);
+  border: 0.5px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+input[type="range"].nt-range:disabled {
+  opacity: 0.4;
+}
+
+/* native control theming */
+select.field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-sec) 50%),
+    linear-gradient(135deg, var(--text-sec) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* thin custom scrollbar inside panels */
+.nt-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.nt-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 3px;
+}

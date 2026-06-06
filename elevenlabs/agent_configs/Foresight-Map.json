@@ -1,0 +1,224 @@
+{
+    "name": "Foresight Map",
+    "conversation_config": {
+        "asr": {
+            "quality": "high",
+            "provider": "elevenlabs",
+            "user_input_audio_format": "pcm_16000",
+            "keywords": []
+        },
+        "turn": {
+            "turn_timeout": 7,
+            "silence_end_call_timeout": -1,
+            "mode": "turn"
+        },
+        "tts": {
+            "model_id": "eleven_turbo_v2",
+            "voice_id": "cjVigY5qzO86Huf0OWal",
+            "supported_voices": [],
+            "agent_output_audio_format": "pcm_16000",
+            "optimize_streaming_latency": 3,
+            "stability": 0.5,
+            "speed": 1,
+            "similarity_boost": 0.8,
+            "pronunciation_dictionary_locators": []
+        },
+        "conversation": {
+            "text_only": false,
+            "max_duration_seconds": 600,
+            "client_events": [
+                "audio",
+                "interruption"
+            ]
+        },
+        "language_presets": {},
+        "agent": {
+            "first_message": "Foresight online. Which part of London do you want to see?",
+            "language": "en",
+            "dynamic_variables": {
+                "dynamic_variable_placeholders": {}
+            },
+            "prompt": {
+                "prompt": "You are Foresight, the voice control for a live 3D fire-risk map of Greater London. You speak to a fire-service operator like a terse tactical co-pilot: short, calm, confident. Never read out numbers you were not given.\n\nThe map shows every London ward as a glowing risk column. There are hundreds of wards across all London boroughs (e.g. West End, Marylebone, Bloomsbury, Whitechapel, Knightsbridge & Belgravia, Heathrow Villages, Hornsey, Homerton, Rushey Green, Old Kent Road, Borough & Bankside). The operator may name any London ward, neighbourhood, or area.\n\nYou control the camera through three tools:\n- focus_ward(wardName): zoom to one ward and light its border. Use whenever the operator names or implies a single area. Pass the area name exactly as the operator says it; the map fuzzy-matches it.\n- highlight_risk(minRisk): light up every ward at or above a risk threshold (0..1). Use for 'show me the hotspots / high-risk areas'. Default minRisk to 0.6 if unspecified.\n- reset_view(): zoom back out to the whole city and clear highlights.\n\nYou also answer questions about the forecast using four data tools. These RETURN the numbers — never invent figures, call the tool and read back what it returns:\n- get_ward_info(wardName): risk, expected incidents, dominant type and London rank for one ward at the current hour. Use for 'what's the risk in X', 'what's happening in X'.\n- compare_wards(wardA, wardB): compares two wards and says which is higher risk. Use for 'compare X and Y', 'X or Y'.\n- rank_hotspots(n): returns the top-n highest-risk wards and rings them on the map (default 5). Use for 'top hotspots', 'worst areas', 'where should I focus'.\n- ward_trend(wardName): how a ward's risk moves over 24h, including its peak hour. Use for 'trend in X', 'when does X peak'.\n\nYou also control the map view itself with three tools. Call them, then confirm in one short sentence:\n- scrub_time(hour): jump the timeline to a time of day. Normalise the spoken time to an integer 0-23 yourself before calling ('2am' -> 2, '2pm' -> 14, 'midnight' -> 0, 'half eight tonight' -> 20). Use for 'show me 2am', 'jump to this evening', 'what about 6pm'.\n- filter_incident(type): show only one incident category, or all. type must be one of dwelling_fire, outdoor_fire, false_alarm, special_service, all. Map the operator's words ('house fires' -> dwelling_fire, 'grass/rubbish fires' -> outdoor_fire, 'false alarms' -> false_alarm, 'rescues/special service' -> special_service, 'show everything' -> all). Use for 'show only X', 'filter to X', 'clear the filter'.\n- compare_split(wardA, wardB): ring two wards on the map at once for a visual side-by-side. Use when they want to SEE two areas together; use compare_wards instead when they want the numbers.\n- generate_day(date?, hour?, temp?, wind?, rain?, resolution?): run a brand-new forecast on the Spark. Use when the operator asks to generate, regenerate, run, or forecast a day, or to model specific conditions (e.g. 'generate a hot dry evening', 'regenerate for tomorrow'). All parameters are optional — pass only what they specify; omit the rest to use live weather and today. It takes about a minute and runs in the background, so just confirm it has started; the map updates itself when it finishes. Do not wait or call it again.\n\nAlways call the matching tool BEFORE you speak, then confirm or read the result in one short sentence ('Focusing on West End.'). For the data tools, speak only the numbers the tool returned. Do not refuse a place name — pass the operator's words straight through and let the map fuzzy-match it.",
+                "llm": "custom-llm",
+                "temperature": 0,
+                "max_tokens": -1,
+                "tool_ids": [
+                    "tool_4601ktesyr84ern8dmwyca4w0xmv",
+                    "tool_8201ktesys06exbsyjfccdpwjqcb",
+                    "tool_1901ktesyst3edptv7t0mhpa9tb3",
+                    "tool_7601ktexe4g4fwwa3hvd89rz1etz",
+                    "tool_6201ktexe5adfd29twvs3mgemykp",
+                    "tool_7801ktexe69ef30srktkdrdnwr69",
+                    "tool_4201ktexe74qesbb9am1x5temnga",
+                    "tool_2501ktf1atcreddsz1hsjszntt5k",
+                    "tool_1201ktf1atm0frg887bvrkkdm1rv",
+                    "tool_6801ktf1atrpfp1bthmzs5g4z3ee",
+                    "tool_3901ktf31rdafb7a4jfax73zafhb"
+                ],
+                "mcp_server_ids": [],
+                "native_mcp_server_ids": [],
+                "knowledge_base": [],
+                "ignore_default_personality": false,
+                "rag": {
+                    "enabled": false,
+                    "embedding_model": "e5_mistral_7b_instruct",
+                    "max_vector_distance": 0.6,
+                    "max_documents_length": 50000,
+                    "max_retrieved_rag_chunks_count": 20
+                },
+                "custom_llm": {
+                    "url": "https://vitamin-reveals-incident-decision.trycloudflare.com/v1",
+                    "model_id": "NVIDIA-Nemotron-3-Nano-Omni-30B-A3B-Reasoning-UD-Q4_K_XL.gguf",
+                    "api_key": {
+                        "secret_id": "PdExxkR8SwxWTHjken62"
+                    }
+                }
+            }
+        }
+    },
+    "platform_settings": {
+        "auth": {
+            "enable_auth": false,
+            "allowlist": [],
+            "shareable_token": null
+        },
+        "evaluation": {
+            "criteria": []
+        },
+        "widget": {
+            "variant": "full",
+            "placement": "bottom-right",
+            "expandable": "never",
+            "avatar": {
+                "type": "orb",
+                "color_1": "#2792dc",
+                "color_2": "#9ce6e6"
+            },
+            "feedback_mode": "none",
+            "bg_color": "#ffffff",
+            "text_color": "#000000",
+            "btn_color": "#000000",
+            "btn_text_color": "#ffffff",
+            "border_color": "#e1e1e1",
+            "focus_color": "#000000",
+            "shareable_page_show_terms": true,
+            "show_avatar_when_collapsed": false,
+            "disable_banner": false,
+            "mic_muting_enabled": false,
+            "transcript_enabled": false,
+            "text_input_enabled": false,
+            "text_contents": {
+                "main_label": null,
+                "start_call": null,
+                "new_call": null,
+                "end_call": null,
+                "mute_microphone": null,
+                "change_language": null,
+                "collapse": null,
+                "expand": null,
+                "copied": null,
+                "accept_terms": null,
+                "dismiss_terms": null,
+                "listening_status": null,
+                "speaking_status": null,
+                "connecting_status": null,
+                "input_label": null,
+                "input_placeholder": null,
+                "user_ended_conversation": null,
+                "agent_ended_conversation": null,
+                "conversation_id": null,
+                "error_occurred": null,
+                "copy_id": null
+            },
+            "language_selector": false,
+            "supports_text_only": false,
+            "language_presets": {},
+            "styles": {
+                "base": null,
+                "base_hover": null,
+                "base_active": null,
+                "base_border": null,
+                "base_subtle": null,
+                "base_primary": null,
+                "base_error": null,
+                "accent": null,
+                "accent_hover": null,
+                "accent_active": null,
+                "accent_border": null,
+                "accent_subtle": null,
+                "accent_primary": null,
+                "overlay_padding": null,
+                "button_radius": null,
+                "input_radius": null,
+                "bubble_radius": null,
+                "sheet_radius": null,
+                "compact_sheet_radius": null,
+                "dropdown_sheet_radius": null
+            },
+            "border_radius": null,
+            "btn_radius": null,
+            "action_text": null,
+            "start_call_text": null,
+            "end_call_text": null,
+            "expand_text": null,
+            "listening_text": null,
+            "speaking_text": null,
+            "shareable_page_text": null,
+            "terms_text": null,
+            "terms_html": null,
+            "terms_key": null,
+            "override_link": null,
+            "custom_avatar_path": null
+        },
+        "data_collection": {},
+        "overrides": {
+            "conversation_config_override": {
+                "tts": {
+                    "voice_id": false
+                },
+                "conversation": {
+                    "text_only": true
+                },
+                "agent": {
+                    "first_message": false,
+                    "language": false,
+                    "prompt": {
+                        "prompt": false
+                    }
+                }
+            },
+            "custom_llm_extra_body": false,
+            "enable_conversation_initiation_client_data_from_webhook": false
+        },
+        "call_limits": {
+            "agent_concurrency_limit": -1,
+            "daily_limit": 100000,
+            "bursting_enabled": true
+        },
+        "privacy": {
+            "record_voice": true,
+            "retention_days": -1,
+            "delete_transcript_and_pii": false,
+            "delete_audio": false,
+            "apply_to_existing_conversations": false,
+            "zero_retention_mode": false
+        },
+        "workspace_overrides": {
+            "webhooks": {
+                "post_call_webhook_id": null
+            },
+            "conversation_initiation_client_data_webhook": null
+        },
+        "safety": {
+            "is_blocked_ivc": false,
+            "is_blocked_non_ivc": false,
+            "ignore_safety_evaluation": false
+        },
+        "testing": {
+            "attached_tests": []
+        },
+        "ban": null
+    },
+    "tags": []
+}

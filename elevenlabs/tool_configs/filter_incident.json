@@ -1,0 +1,21 @@
+{
+    "name": "filter_incident",
+    "description": "Set the map's incident-type filter so only one category of incident is shown. Pass type as one of: dwelling_fire, outdoor_fire, false_alarm, special_service, or all (to clear the filter and show everything). Map the operator's words onto these (e.g. 'house fires' -> dwelling_fire, 'rubbish/grass fires' -> outdoor_fire, 'false alarms' -> false_alarm, 'special service / rescues' -> special_service, 'show everything / clear filter' -> all). Call whenever the operator asks to filter, show only, or reset the incident type.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "type": {
+                "type": "string",
+                "description": "Incident category to show: dwelling_fire, outdoor_fire, false_alarm, special_service, or all."
+            }
+        },
+        "required": ["type"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

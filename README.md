@@ -60,6 +60,8 @@ DGX Spark's official spec: local AI software stack, NIM support, 128 GB unified 
 | ONS Census 2021 LSOA tables | [ONS](https://www.ons.gov.uk) | OGL v3 |
 | LFB Bonfire/Diwali/Halloween incident records | [London Datastore](https://data.london.gov.uk/dataset/incidents-occuring-around-diwali-halloween---bonfire-night/) | OGL v3 |
 
+Contains public sector information licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+
 ---
 
 ## Team Split
@@ -347,6 +349,86 @@ sequenceDiagram
     Android->>Android: Open Maps intent
 ```
 
+### DGX Spark handoff — what crosses the GPU boundary
+
+The only thing the DGX Spark hands to the rest of the system is a single file: `outputs/forecast_24h.json`. All GPU work (preprocessing, training, rollout inference) happens **offline** on the Spark; the backend and frontend never touch CUDA. The handoff is a plain file the backend hot-reloads on `mtime` change — DGX overwrites the JSON, the next API request serves it with no restart and no code change.
+
+```mermaid
+flowchart LR
+    subgraph DGX["🟩 DGX Spark (GB10 GPU) — offline, all CUDA work here"]
+        direction TB
+        RAW[Raw LFB CSV<br/>~1.7M rows] --> PREP[Preprocess + tokenise<br/>RAPIDS/cuDF · clean.py · tokenise.py]
+        PREP --> TRAIN
+        subgraph TRAIN["Train (one-time, ~1.5–3 hr)"]
+            direction LR
+            BASE[Baseline risk model<br/>LightGBM/cuML<br/>train_baseline.py]
+            GPT[GPT-2 causal transformer<br/>~19.5M–124M params<br/>model.py · train_gpt2.py]
+        end
+        TRAIN --> INFER[Inference / rollout<br/>102 stations × 50 rollouts = 5,100<br/>≤150 tokens each · infer.py]
+        INFER --> JSON[(outputs/forecast_24h.json<br/>WardForecast with 24× hourly<br/>risk_score · expected_count · dominant_type)]
+    end
+
+    JSON -. "file written to disk<br/>(no HTTP, no GPU on the other side)" .-> LOADER
+
+    subgraph BE["🟦 FastAPI Backend :8008 — CPU only, no inference"]
+        direction TB
+        LOADER[loader.py<br/>mtime hot-reload + in-mem cache]
+        LOADER --> FAPI[Routes]
+        SCEN[scenario_logic.py<br/>rule-based boosts only<br/>events · weather · pump coverage]
+        FAPI --- SCEN
+    end
+
+    subgraph CLIENTS["🟧 Clients"]
+        direction TB
+        WEB[Three.js Web Dashboard :5174<br/>3D ward risk surface + timeline]
+        AND[Android Dispatch App<br/>mock dispatch + Maps intent]
+    end
+
+    FAPI -- "GET /api/forecast" --> WEB
+    FAPI -- "POST /api/scenario → forecast_delta + recommendations" --> WEB
+    FAPI -- "GET /api/mobile/state · POST /api/mobile/accept" --> AND
+    FAPI -- "POST /api/ask → answer + actions" --> WEB
+    WEB -- "POST /api/scenario (live weather, what-if)" --> FAPI
+
+    classDef gpu fill:#0b3d0b,stroke:#3fb950,color:#e6ffe6;
+    classDef be fill:#0b2a4a,stroke:#58a6ff,color:#e6f0ff;
+    classDef cl fill:#4a2e0b,stroke:#ffa657,color:#fff0e0;
+    class DGX,TRAIN gpu;
+    class BE be;
+    class CLIENTS cl;
+```
+
+**Handoff contract (the artifact):**
+
+| Producer | Artifact | Consumer | Mechanism | Timing |
+|---|---|---|---|---|
+| DGX Spark (`infer.py`) | `outputs/forecast_24h.json` | Backend (`loader.py`) | File on disk, `mtime` hot-reload | Training ~1.5–3 hr (one-time); inference rollout produces the JSON per refresh |
+| Backend (`routes/*`) | JSON over HTTP `:8008` | Web `:5174` + Android | FastAPI / REST | Per request (read-only, ms) |
+| Backend (`scenario_logic.py`) | `forecast_delta` + recommendations | Web + Android | Rule-based, no GPU | Per request (deterministic, ms) |
+
+> **Key design point for judges:** the GPU boundary is a single JSON file. The Spark can be busy training for hours while the live demo keeps serving the last-good forecast. Swapping fake data for the real model is a zero-code file swap — both conform to the same `WardForecast` schema.
+
+---
+
+## Second Spark workload — the NVIDIA Nemotron voice brain
+
+The 3D map is voice-controllable: an operator says *"show me West End"* or *"top 5 hotspots"* and
+the camera flies / risk rings light up / ward stats are spoken back. The **reasoning and
+tool-selection brain for that assistant is NVIDIA Nemotron, running locally on the same DGX Spark
+GB10** — ElevenLabs only handles speech-in/speech-out and ferries tool calls to the browser. No
+external LLM is in the loop.
+
+```
+🎙 speech → ☁️ ElevenLabs (ASR/TTS only) → 🌐 cloudflared → 🟩 DGX Spark: NVIDIA Nemotron (CUDA/NVFP4)
+                                                                   │ returns OpenAI tool_calls (SSE)
+🖥 RiskMap3D (camera fly / rings / spoken stats) ◄── client tool ──┘
+```
+
+Served with the Spark's CUDA-built `llama.cpp` (an official NVIDIA DGX Spark playbook) loading the
+pre-installed Nemotron GGUF onto the GB10; log shows `NVIDIA GB10 … BLACKWELL_NATIVE_FP4 = 1`.
+Validated end-to-end (tool-calls + ~0.4 s voice latency). **Full write-up, proof, and reproduce
+steps: [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md).**
+
 ---
 
 ## Shared Data Contracts
@@ -483,7 +565,7 @@ foresight-for-fires/
 | 1 | 0–2 | **Lock interfaces.** Agree forecast/scenario schema, routes, folders, demo district (Lewisham), demo scenario (Bonfire Night + pump shortage + high wind). B ships a fake `forecast_24h.json` so no one is blocked. |
 | 2 | 2–8 | **Parallel MVP.** A: data→baseline→forecast JSON. B: FastAPI + React + 3D surface on fake data. C: Android app on fake backend. |
 | 3 | 8–14 | **Integration.** A swaps in real forecast. B connects to real `/api/forecast` + scenario delta. C connects to real `/api/mobile/state` + scenario buttons. |
-| 4 | 14–18 | **NVIDIA/Spark depth.** A adds RAPIDS/cuDF or CUDA PyTorch or NIM `/api/ask`. B adds "Running locally on DGX Spark" status panel. C adds voice/TTS. |
+| 4 | 14–18 | **NVIDIA/Spark depth.** A adds RAPIDS/cuDF or CUDA PyTorch. B adds "Running locally on DGX Spark" status panel. C adds voice/TTS driven by an **NVIDIA Nemotron** brain on the Spark (shipped — see [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md)). |
 | 5 | 18–21 | **Polish demo path.** One scripted end-to-end run; screenshots + backup video. |
 | 6 | 21–24 | **Stability + story.** One-command startup, no crashes, pre-generated forecast fallback, `DEMO_SCRIPT.md`, README, scoring explanation. |
 
@@ -494,7 +576,7 @@ foresight-for-fires/
 | Criterion | Pts | Our story |
 |---|---|---|
 | Technical Execution & Completeness | 30 | Full local data-to-decision pipeline: raw LFB → GPU preprocessing → model training → 24h ward risk → 3D web viz → mobile dispatch. |
-| NVIDIA Ecosystem & Spark Utility | 30 | RAPIDS/cuDF preprocessing + PyTorch CUDA training + (stretch) NIM/Nemotron assistant. 128GB unified memory keeps model + geo + agent resident; operational data stays local. |
+| NVIDIA Ecosystem & Spark Utility | 30 | Two GPU workloads on one DGX Spark (GB10): (1) GPT-2 forecast trained from scratch with **PyTorch CUDA**, (2) the voice assistant's reasoning brain is **NVIDIA Nemotron** (`Nemotron-3-Nano`) served locally on the GB10 via CUDA/Blackwell-NVFP4 — see [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md). 128 GB unified memory keeps model + geo + agent resident; no external LLM, operational data stays local. |
 | Value & Impact | 20 | Where to pre-position scarce standby resources when local coverage is degraded. Top-5 wards at risk, risk increase from pump commitment, recommended standby, driving incident type, confidence. |
 | Innovation & Execution | 20 | Incident history as a language; dynamic ward risk surface; scenario-conditioned planning; mobile dispatch loop; local voice assistant. |
 
@@ -522,7 +604,7 @@ foresight-for-fires/
 [ ] Scenario panel changes forecast/recommendation
 [ ] Android app displays recommendation
 [ ] Android app opens routing intent
-[ ] At least one NVIDIA component used
+[x] At least one NVIDIA component used (PyTorch-CUDA GPT-2 forecast + NVIDIA Nemotron voice brain, both on DGX Spark GB10 — see docs/NVIDIA_STACK.md)
 [ ] Spark/privacy/local-inference story is clear
 [ ] Demo can run without internet
 [ ] Backup forecast JSON exists

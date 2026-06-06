@@ -1,0 +1,21 @@
+{
+    "name": "rank_hotspots",
+    "description": "Find the highest-risk London wards at the hour on the timeline, rings them on the map, and reads back the ranked list with each ward's risk. Call whenever the operator asks for the top hotspots, the worst/riskiest areas, or where to focus right now.",
+    "type": "client",
+    "expects_response": true,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "n": {
+                "type": "number",
+                "description": "How many top wards to return and ring on the map. Defaults to 5 if not specified."
+            }
+        },
+        "required": []
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "name": "generate_day",
+    "description": "Kick off a fresh fire-risk forecast for Greater London on the DGX Spark (a GPT-2 rollout across all stations). Use when the operator asks to generate, regenerate, run, or forecast a day, or to model specific conditions. All parameters are optional: omit them to use the panel's current values (which default to live weather and today). Provide only what the operator specifies. This is long-running (about a minute) and fire-and-forget — confirm it has started; the map refreshes automatically when it completes.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "date": {
+                "type": "string",
+                "description": "Day to forecast as YYYY-MM-DD. Omit for today. Compute the ISO date yourself if the operator says 'tomorrow' etc."
+            },
+            "hour": {
+                "type": "number",
+                "description": "Start hour of the rollout, integer 0-23. Omit to keep the panel's current start hour."
+            },
+            "temp": {
+                "type": "number",
+                "description": "Air temperature in degrees Celsius. Omit to keep current/live value."
+            },
+            "wind": {
+                "type": "number",
+                "description": "Wind speed in km/h. Omit to keep current/live value."
+            },
+            "rain": {
+                "type": "number",
+                "description": "Rainfall in mm/h. Omit to keep current/live value."
+            },
+            "resolution": {
+                "type": "string",
+                "description": "Rollout detail: 'fast' (10/station), 'balanced' (15), or 'full' (20). Omit to keep the current setting."
+            }
+        },
+        "required": []
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Foresight for Fires — Model Progress</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --red:    #e03131;
+      --orange: #f76707;
+      --yellow: #f59f00;
+      --dark:   #1a1a2e;
+      --mid:    #16213e;
+      --panel:  #0f3460;
+      --text:   #e2e8f0;
+      --muted:  #94a3b8;
+      --border: #2d3748;
+      --green:  #38a169;
+      --blue:   #4299e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--dark);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #b91c1c 0%, #7c2d12 50%, #1a1a2e 100%);
+      padding: 2.5rem 3rem;
+      border-bottom: 3px solid var(--orange);
+    }
+    header h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.5px; }
+    header h1 span { color: var(--orange); }
+    header p  { color: #fca5a5; margin-top: 0.4rem; font-size: 0.95rem; }
+    .header-meta {
+      display: flex; gap: 2rem; margin-top: 1rem; flex-wrap: wrap;
+    }
+    .meta-chip {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.25rem 0.8rem;
+      border-radius: 99px;
+      font-size: 0.82rem;
+      color: #fef3c7;
+    }
+
+    /* ── Layout ── */
+    main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+    /* ── Section ── */
+    section { margin-bottom: 3rem; }
+    h2 {
+      font-size: 1.3rem; font-weight: 600;
+      color: var(--orange);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.2rem;
+    }
+    h3 { font-size: 1.05rem; font-weight: 600; color: #cbd5e1; margin: 1.2rem 0 0.6rem; }
+
+    /* ── Pipeline table ── */
+    .pipeline { display: flex; flex-direction: column; gap: 0.5rem; }
+    .phase {
+      display: grid;
+      grid-template-columns: 2.5rem 1fr 5rem;
+      align-items: center;
+      gap: 1rem;
+      background: var(--mid);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--orange);
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+    }
+    .phase.done  { border-left-color: var(--green); }
+    .phase.next  { border-left-color: var(--blue);  opacity: 0.7; }
+    .phase-num   { font-size: 1.4rem; font-weight: 800; color: var(--muted); text-align: center; }
+    .phase-title { font-weight: 600; font-size: 0.95rem; }
+    .phase-desc  { font-size: 0.83rem; color: var(--muted); margin-top: 0.15rem; }
+    .badge {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      padding: 0.2rem 0.6rem; border-radius: 99px; text-align: center;
+      letter-spacing: 0.05em;
+    }
+    .badge.done { background: #1c4532; color: #68d391; }
+    .badge.next { background: #1a365d; color: #90cdf4; }
+
+    /* ── Cards ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--mid);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.1rem 1.3rem;
+    }
+    .card .val  { font-size: 2rem; font-weight: 800; color: var(--orange); }
+    .card .label { font-size: 0.82rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ── Charts ── */
+    .chart-wrap {
+      background: var(--mid);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+    .chart-wrap canvas { max-height: 320px; }
+
+    /* ── Token table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { padding: 0.55rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--panel); color: var(--orange); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    .mono { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.82rem; color: #93c5fd; }
+
+    /* ── Arch box ── */
+    .arch {
+      background: var(--mid);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .arch dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; align-content: start; }
+    .arch dt { color: var(--muted); font-size: 0.85rem; }
+    .arch dd { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+
+    /* ── Sample output ── */
+    .sample-block {
+      background: #0d1b2a;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--orange);
+      border-radius: 0 6px 6px 0;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+    }
+    .sample-block .ctx { color: #7dd3fc; }
+    .sample-block .tok-dt      { color: #fbbf24; }
+    .sample-block .tok-station { color: #a78bfa; }
+    .sample-block .tok-ward    { color: #6ee7b7; }
+    .sample-block .tok-type    { color: #f87171; }
+    .sample-block .tok-stop    { color: #fb923c; }
+    .sample-block .tok-prop    { color: #94a3b8; }
+    .sample-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem; font-family: sans-serif; }
+
+    /* ── Schema ── */
+    pre {
+      background: #0d1b2a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.2rem;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      color: #e2e8f0;
+      line-height: 1.7;
+    }
+    .key   { color: #93c5fd; }
+    .str   { color: #6ee7b7; }
+    .num   { color: #fbbf24; }
+    .cmt   { color: #64748b; font-style: italic; }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#x1F525; Foresight for <span>Fires</span></h1>
+  <p>NVIDIA Hack London · Track: Urban Operations · DGX Spark (GB10)</p>
+  <div class="header-meta">
+    <span class="meta-chip">Person A — Model &amp; Data</span>
+    <span class="meta-chip">LFB Incident Records 2009–2024</span>
+    <span class="meta-chip">GPT-2 Small · 19.5M params</span>
+    <span class="meta-chip">Val loss: 1.0851 · Perplexity: 2.96</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Pipeline ──────────────────────────────────────────────── -->
+  <section>
+    <h2>Pipeline Overview</h2>
+    <div class="pipeline">
+      <div class="phase done">
+        <div class="phase-num">1</div>
+        <div>
+          <div class="phase-title">Data Cleaning &amp; Weather Enrichment</div>
+          <div class="phase-desc">1.79M LFB incidents → cleaned parquet. Open-Meteo hourly weather joined (temp, rain, wind). Train/test split at 2023-01-01.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      <div class="phase done">
+        <div class="phase-num">2</div>
+        <div>
+          <div class="phase-title">Baseline Risk Model (LightGBM)</div>
+          <div class="phase-desc">Hourly ward×type count regression. Poisson objective. Calibrated with true historical base rate. Outputs forecast_24h.json schema.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      <div class="phase done">
+        <div class="phase-num">3</div>
+        <div>
+          <div class="phase-title">Tokenisation</div>
+          <div class="phase-desc">976-token vocabulary across 14 families. 6 tokens/incident. 10.8M training tokens across ~100 stations.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      <div class="phase done">
+        <div class="phase-num">4</div>
+        <div>
+          <div class="phase-title">Dataset Construction (Windowing)</div>
+          <div class="phase-desc">Sliding windows (seq_len=256, stride=128). 8-token context prefix. 71,295 train / 12,460 val windows.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      <div class="phase done">
+        <div class="phase-num">5</div>
+        <div>
+          <div class="phase-title">GPT-2 Training</div>
+          <div class="phase-desc">19.5M param causal transformer. Flash attention. 15 epochs on GB10. Best val loss 1.0851 (epoch 7). 28.2 min.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+      <div class="phase done">
+        <div class="phase-num">6</div>
+        <div>
+          <div class="phase-title">Inference &amp; Risk Surface</div>
+          <div class="phase-desc">102 stations × 50 rollouts = 5,100 total. 675 wards covered. Risk range 0.010–1.000. forecast_24h.json written.</div>
+        </div>
+        <span class="badge done">Done</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Key numbers ───────────────────────────────────────────── -->
+  <section>
+    <h2>Key Numbers</h2>
+    <div class="card-grid">
+      <div class="card"><div class="val">1.79M</div><div class="label">LFB incidents (2009–2024)</div></div>
+      <div class="card"><div class="val">976</div><div class="label">Vocabulary tokens</div></div>
+      <div class="card"><div class="val">10.8M</div><div class="label">Training tokens</div></div>
+      <div class="card"><div class="val">19.5M</div><div class="label">Model parameters</div></div>
+      <div class="card"><div class="val">1.0851</div><div class="label">Best val loss (epoch 7/15)</div></div>
+      <div class="card"><div class="val">2.96</div><div class="label">Perplexity (vs 976 random)</div></div>
+      <div class="card"><div class="val">28.2 min</div><div class="label">Training time (GB10)</div></div>
+      <div class="card"><div class="val">1,481</div><div class="label">London wards in vocabulary</div></div>
+    </div>
+  </section>
+
+  <!-- ── Tokenisation ──────────────────────────────────────────── -->
+  <section>
+    <h2>Tokenisation Strategy</h2>
+    <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
+      Each incident is encoded as a fixed 6-token tuple. The model learns the language of urban emergencies
+      by predicting the next token in a per-station sequence ordered chronologically over 15 years.
+    </p>
+
+    <h3>Incident tuple (6 tokens per event)</h3>
+    <div style="background:var(--mid); border:1px solid var(--border); border-radius:8px; padding:1.2rem; margin-bottom:1rem;">
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; font-family:monospace; font-size:0.88rem;">
+        <span style="background:#451a03; color:#fbbf24; padding:0.3rem 0.7rem; border-radius:4px;">DT_x</span>
+        <span style="color:var(--muted); align-self:center;">→</span>
+        <span style="background:#2e1065; color:#a78bfa; padding:0.3rem 0.7rem; border-radius:4px;">STATION_x</span>
+        <span style="color:var(--muted); align-self:center;">→</span>
+        <span style="background:#064e3b; color:#6ee7b7; padding:0.3rem 0.7rem; border-radius:4px;">WARD_x</span>
+        <span style="color:var(--muted); align-self:center;">→</span>
+        <span style="background:#450a0a; color:#f87171; padding:0.3rem 0.7rem; border-radius:4px;">TYPE_x</span>
+        <span style="color:var(--muted); align-self:center;">→</span>
+        <span style="background:#431407; color:#fb923c; padding:0.3rem 0.7rem; border-radius:4px;">STOP_x</span>
+        <span style="color:var(--muted); align-self:center;">→</span>
+        <span style="background:#1e293b; color:#94a3b8; padding:0.3rem 0.7rem; border-radius:4px;">PROP_x</span>
+      </div>
+      <p style="font-size:0.8rem; color:var(--muted); margin-top:0.8rem;">
+        DT = time-gap to previous incident &nbsp;|&nbsp; STATION = responding station &nbsp;|&nbsp; WARD = incident ward &nbsp;|&nbsp;
+        TYPE = incident category &nbsp;|&nbsp; STOP = stop code &nbsp;|&nbsp; PROP = property type
+      </p>
+    </div>
+
+    <h3>Window context prefix (8 tokens, prepended to each training window)</h3>
+    <div style="background:var(--mid); border:1px solid var(--border); border-radius:8px; padding:1.2rem; margin-bottom:1.2rem;">
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; font-family:monospace; font-size:0.88rem;">
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">&lt;BOS&gt;</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">REGIME</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">TEMP_x</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">RAIN_x</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">WIND_x</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">DOW_x</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">HOUR_x</span>
+        <span style="background:#1a365d; color:#90cdf4; padding:0.3rem 0.7rem; border-radius:4px;">MONTH_x</span>
+      </div>
+    </div>
+
+    <h3>Vocabulary breakdown</h3>
+    <table>
+      <thead>
+        <tr><th>Family</th><th>Count</th><th>Examples</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Special</td><td>3</td><td class="mono">&lt;PAD&gt; &lt;BOS&gt; &lt;EOS&gt;</td><td>Sequence framing</td></tr>
+        <tr><td>GAP (time delta)</td><td>10</td><td class="mono">&lt;DT_5MIN&gt; &lt;DT_1H&gt; &lt;DT_1D&gt; &lt;DT_LONG&gt;</td><td>Time between incidents</td></tr>
+        <tr><td>Station</td><td>~103</td><td class="mono">&lt;STATION_SOHO&gt; &lt;STATION_BRIXTON&gt;</td><td>Responding station</td></tr>
+        <tr><td>Ward</td><td>~650</td><td class="mono">&lt;WARD_GOSPEL_OAK&gt; &lt;WARD_MILDMAY&gt;</td><td>Incident location (map polygon)</td></tr>
+        <tr><td>Incident Type</td><td>4</td><td class="mono">&lt;TYPE_DWELLING_FIRE&gt; &lt;TYPE_FALSE_ALARM&gt;</td><td>Incident category → map colour</td></tr>
+        <tr><td>Stop Code</td><td>~10</td><td class="mono">&lt;STOP_PRIMARY_FIRE&gt; &lt;STOP_AFA&gt;</td><td>How incident was resolved</td></tr>
+        <tr><td>Property</td><td>~10</td><td class="mono">&lt;PROP_DWELLING&gt; &lt;PROP_OUTDOOR&gt;</td><td>Property type involved</td></tr>
+        <tr><td>Temperature</td><td>5</td><td class="mono">&lt;TEMP_FREEZING&gt; … &lt;TEMP_HOT&gt;</td><td>Weather context</td></tr>
+        <tr><td>Rain</td><td>4</td><td class="mono">&lt;RAIN_NONE&gt; … &lt;RAIN_HEAVY&gt;</td><td>Weather context</td></tr>
+        <tr><td>Wind</td><td>4</td><td class="mono">&lt;WIND_CALM&gt; … &lt;WIND_STORM&gt;</td><td>Weather context</td></tr>
+        <tr><td>Day of week</td><td>7</td><td class="mono">&lt;DOW_MON&gt; … &lt;DOW_SUN&gt;</td><td>Calendar context</td></tr>
+        <tr><td>Hour</td><td>24</td><td class="mono">&lt;HOUR_0&gt; … &lt;HOUR_23&gt;</td><td>Calendar context</td></tr>
+        <tr><td>Month</td><td>12</td><td class="mono">&lt;MONTH_JAN&gt; … &lt;MONTH_DEC&gt;</td><td>Calendar context</td></tr>
+        <tr><td>Regime</td><td>2</td><td class="mono">&lt;POST_STATION_REMAP&gt; &lt;POST_GRENFELL&gt;</td><td>Structural era flags</td></tr>
+        <tr style="font-weight:700;"><td>Total</td><td>976</td><td colspan="2">Fits in int16 (max 32767)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>GAP bucket boundaries</h3>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:0.6rem;">
+      Derived from the actual inter-incident gap distribution. Bins are logarithmically spaced to capture both rapid successive calls and quiet overnight periods.
+    </p>
+    <div class="chart-wrap">
+      <canvas id="gapChart"></canvas>
+    </div>
+  </section>
+
+  <!-- ── Model architecture ─────────────────────────────────────── -->
+  <section>
+    <h2>Model Architecture — GPT-2 Small Tier</h2>
+    <div class="arch">
+      <dl>
+        <dt>Architecture</dt>   <dd>Causal decoder transformer (nanoGPT-style)</dd>
+        <dt>Layers</dt>         <dd>6</dd>
+        <dt>Attention heads</dt><dd>8</dd>
+        <dt>d_model</dt>        <dd>512</dd>
+        <dt>d_ff</dt>           <dd>2048 (4×)</dd>
+        <dt>Sequence length</dt><dd>255 tokens</dd>
+        <dt>Vocab size</dt>     <dd>976</dd>
+        <dt>Parameters</dt>     <dd>19.5M</dd>
+      </dl>
+      <dl>
+        <dt>Attention</dt>      <dd>Flash (F.scaled_dot_product_attention)</dd>
+        <dt>Norm</dt>           <dd>Pre-norm LayerNorm (no bias)</dd>
+        <dt>Weight tying</dt>   <dd>Embedding ↔ LM head (shared)</dd>
+        <dt>Init</dt>           <dd>std=0.02, residual scale 0.02/√(2L)</dd>
+        <dt>Optimizer</dt>      <dd>AdamW (fused CUDA) β=(0.9, 0.95)</dd>
+        <dt>LR schedule</dt>    <dd>Linear warmup 500 steps → cosine decay</dd>
+        <dt>Precision</dt>      <dd>Mixed (torch.amp bf16/fp16)</dd>
+        <dt>Grad clip</dt>      <dd>1.0</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ── Training results ──────────────────────────────────────── -->
+  <section>
+    <h2>Training Results</h2>
+    <div class="card-grid" style="margin-bottom:1.5rem;">
+      <div class="card"><div class="val">1.0851</div><div class="label">Best val loss (epoch 7)</div></div>
+      <div class="card"><div class="val">1.0784</div><div class="label">Final train loss (epoch 15)</div></div>
+      <div class="card"><div class="val">2.96×</div><div class="label">Perplexity (random = 976)</div></div>
+      <div class="card"><div class="val">28.2 min</div><div class="label">Wall-clock training time</div></div>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="lossChart"></canvas>
+    </div>
+
+    <p style="font-size:0.82rem; color:var(--muted); margin-top:0.8rem;">
+      Val loss bottoms at epoch 7 (1.0851) then slowly increases while train loss continues falling — mild overfitting
+      with a gap of only 0.006. Best checkpoint saved at epoch 7 and used for all inference.
+      The sharp initial drop (random loss 6.88 → 1.51 in epoch 1) shows rapid vocabulary structure learning.
+    </p>
+  </section>
+
+  <!-- ── Sample outputs ────────────────────────────────────────── -->
+  <section>
+    <h2>Sample Model Rollouts</h2>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">
+      Generated from best checkpoint (epoch 7). Context prefix in blue; generated incident tokens colour-coded by family.
+      Each block = one scenario cold-start.
+    </p>
+
+    <div class="sample-label">SCENARIO 1 — Friday 18:00, Jan, cold &amp; dry (busy period baseline)</div>
+    <div class="sample-block">
+<span class="ctx">&lt;BOS&gt; &lt;POST_GRENFELL&gt; &lt;TEMP_COLD&gt; &lt;RAIN_NONE&gt; &lt;WIND_CALM&gt; &lt;DOW_FRI&gt; &lt;HOUR_18&gt; &lt;MONTH_JAN&gt;</span>
+<span class="tok-dt">&lt;DT_4H&gt;</span> <span class="tok-station">&lt;STATION_STOKE_NEWINGTON&gt;</span> <span class="tok-ward">&lt;WARD_MILDMAY&gt;</span> <span class="tok-type">&lt;TYPE_SPECIAL_SERVICE&gt;</span> <span class="tok-stop">&lt;STOP_SPECIAL_SERVICE&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+<span class="tok-dt">&lt;DT_30MIN&gt;</span> <span class="tok-station">&lt;STATION_STOKE_NEWINGTON&gt;</span> <span class="tok-ward">&lt;WARD_STOKE_NEWINGTON&gt;</span> <span class="tok-type">&lt;TYPE_FALSE_ALARM&gt;</span> <span class="tok-stop">&lt;STOP_AFA&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+<span class="tok-dt">&lt;DT_15MIN&gt;</span> <span class="tok-station">&lt;STATION_STOKE_NEWINGTON&gt;</span> <span class="tok-ward">&lt;WARD_HACKNEY_DOWNS&gt;</span> <span class="tok-type">&lt;TYPE_DWELLING_FIRE&gt;</span> <span class="tok-stop">&lt;STOP_PRIMARY_FIRE&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+<span class="tok-dt">&lt;DT_2H&gt;</span> <span class="tok-station">&lt;STATION_STOKE_NEWINGTON&gt;</span> <span class="tok-ward">&lt;WARD_CLISSOLD&gt;</span> <span class="tok-type">&lt;TYPE_OUTDOOR_FIRE&gt;</span> <span class="tok-stop">&lt;STOP_SECONDARY_FIRE&gt;</span> <span class="tok-prop">&lt;PROP_OUTDOOR_STRUCTURE&gt;</span>
+    </div>
+
+    <div class="sample-label">SCENARIO 2 — Bonfire Night, 5 Nov 2023, 21:00 (outdoor fire spike)</div>
+    <div class="sample-block">
+<span class="ctx">&lt;BOS&gt; &lt;POST_GRENFELL&gt; &lt;TEMP_MILD&gt; &lt;RAIN_NONE&gt; &lt;WIND_BREEZY&gt; &lt;DOW_SUN&gt; &lt;HOUR_21&gt; &lt;MONTH_NOV&gt;</span>
+<span class="tok-dt">&lt;DT_4H&gt;</span> <span class="tok-station">&lt;STATION_NORBURY&gt;</span> <span class="tok-ward">&lt;WARD_THORNTON_HEATH&gt;</span> <span class="tok-type">&lt;TYPE_SPECIAL_SERVICE&gt;</span> <span class="tok-stop">&lt;STOP_SPECIAL_SERVICE&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+<span class="tok-dt">&lt;DT_2H&gt;</span> <span class="tok-station">&lt;STATION_NORBURY&gt;</span> <span class="tok-ward">&lt;WARD_NORBURY_PARK&gt;</span> <span class="tok-type">&lt;TYPE_OUTDOOR_FIRE&gt;</span> <span class="tok-stop">&lt;STOP_SECONDARY_FIRE&gt;</span> <span class="tok-prop">&lt;PROP_OUTDOOR&gt;</span>
+<span class="tok-dt">&lt;DT_8H&gt;</span> <span class="tok-station">&lt;STATION_NORBURY&gt;</span> <span class="tok-ward">&lt;WARD_POLLARDS_HILL&gt;</span> <span class="tok-type">&lt;TYPE_OUTDOOR_FIRE&gt;</span> <span class="tok-stop">&lt;STOP_SECONDARY_FIRE&gt;</span> <span class="tok-prop">&lt;PROP_OUTDOOR&gt;</span>
+<span class="tok-dt">&lt;DT_1H&gt;</span> <span class="tok-station">&lt;STATION_NORBURY&gt;</span> <span class="tok-ward">&lt;WARD_NORBURY_AND_POLLARDS_HILL&gt;</span> <span class="tok-type">&lt;TYPE_FALSE_ALARM&gt;</span> <span class="tok-stop">&lt;STOP_AFA&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+    </div>
+
+    <div class="sample-label">SCENARIO 3 — Winter storm, 3am, Jan (freezing, heavy rain, storm winds)</div>
+    <div class="sample-block">
+<span class="ctx">&lt;BOS&gt; &lt;POST_GRENFELL&gt; &lt;TEMP_FREEZING&gt; &lt;RAIN_HEAVY&gt; &lt;WIND_STORM&gt; &lt;DOW_MON&gt; &lt;HOUR_3&gt; &lt;MONTH_JAN&gt;</span>
+<span class="tok-dt">&lt;DT_1D&gt;</span> <span class="tok-station">&lt;STATION_PECKHAM&gt;</span> <span class="tok-ward">&lt;WARD_PECKHAM&gt;</span> <span class="tok-type">&lt;TYPE_FALSE_ALARM&gt;</span> <span class="tok-stop">&lt;STOP_FALSE_ALARM_GOOD_INTENT&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+<span class="tok-dt">&lt;DT_8H&gt;</span> <span class="tok-station">&lt;STATION_PECKHAM&gt;</span> <span class="tok-ward">&lt;WARD_CAMBERWELL_GREEN&gt;</span> <span class="tok-type">&lt;TYPE_FALSE_ALARM&gt;</span> <span class="tok-stop">&lt;STOP_AFA&gt;</span> <span class="tok-prop">&lt;PROP_NON_RESIDENTIAL&gt;</span>
+<span class="tok-dt">&lt;DT_2H&gt;</span> <span class="tok-station">&lt;STATION_PECKHAM&gt;</span> <span class="tok-ward">&lt;WARD_GOOSE_GREEN&gt;</span> <span class="tok-type">&lt;TYPE_FALSE_ALARM&gt;</span> <span class="tok-stop">&lt;STOP_AFA&gt;</span> <span class="tok-prop">&lt;PROP_NON_RESIDENTIAL&gt;</span>
+<span class="tok-dt">&lt;DT_8H&gt;</span> <span class="tok-station">&lt;STATION_PECKHAM&gt;</span> <span class="tok-ward">&lt;WARD_RYE_LANE&gt;</span> <span class="tok-type">&lt;TYPE_SPECIAL_SERVICE&gt;</span> <span class="tok-stop">&lt;STOP_SPECIAL_SERVICE&gt;</span> <span class="tok-prop">&lt;PROP_DWELLING&gt;</span>
+    </div>
+
+    <p style="font-size:0.82rem; color:var(--muted);">
+      Note: Storm scenario dominated by false alarms (wind-triggered detectors) with large DT gaps (city quiet at 3am).
+      Bonfire Night correctly spikes outdoor fires. Each scenario anchors to a geographically coherent station–ward cluster.
+    </p>
+  </section>
+
+  <!-- ── Phase 5 inference results ────────────────────────────── -->
+  <section>
+    <h2>Phase 5 — Inference Results</h2>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">
+      Per-station rollout sampling: 102 stations × 50 rollouts = 5,100 total rollouts.
+      Each rollout seeds the model with the 8-token context prefix + station token, then generates up to 150 new tokens.
+      Simulated time is tracked via GAP token midpoints; only incidents falling within the 24h window are counted.
+    </p>
+
+    <div class="card-grid" style="margin-bottom:1.5rem;">
+      <div class="card"><div class="val">102</div><div class="label">Stations sampled (0 skipped)</div></div>
+      <div class="card"><div class="val">5,100</div><div class="label">Total rollouts (50/station)</div></div>
+      <div class="card"><div class="val">692</div><div class="label">Wards with predicted incidents</div></div>
+      <div class="card"><div class="val">0.004–1.000</div><div class="label">Risk score range (full spread)</div></div>
+    </div>
+
+    <h3>Top 10 highest-risk wards — Friday 18:00, Jan, cold &amp; dry</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Ward</th><th>Borough</th><th>Risk Score</th><th>Dominant Type</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>West End</td><td>Westminster</td><td>1.000</td><td>false_alarm</td></tr>
+        <tr><td>2</td><td>St. James's</td><td>Westminster</td><td>0.632</td><td>false_alarm</td></tr>
+        <tr><td>3</td><td>Heathrow Villages</td><td>Hillingdon</td><td>0.405</td><td>false_alarm</td></tr>
+        <tr><td>4</td><td>Bloomsbury</td><td>Camden</td><td>0.326</td><td>false_alarm</td></tr>
+        <tr><td>5</td><td>Holborn &amp; Covent Garden</td><td>Camden</td><td>0.318</td><td>false_alarm</td></tr>
+        <tr><td>6</td><td>Regent's Park</td><td>Camden</td><td>0.293</td><td>false_alarm</td></tr>
+        <tr><td>7</td><td>Fairfield</td><td>Croydon</td><td>0.289</td><td>false_alarm</td></tr>
+        <tr><td>8</td><td>Bunhill</td><td>Islington</td><td>0.248</td><td>false_alarm</td></tr>
+        <tr><td>9</td><td>Borough &amp; Bankside</td><td>Southwark</td><td>0.240</td><td>false_alarm</td></tr>
+        <tr><td>10</td><td>Stonebridge</td><td>Brent</td><td>0.240</td><td>false_alarm</td></tr>
+      </tbody>
+    </table>
+
+    <p style="font-size:0.82rem; color:var(--muted); margin-top:0.8rem;">
+      Westminster/Camden cluster reflects dense commercial, hotel and restaurant premises (AFA false alarms).
+      Heathrow Villages reflects airport terminal infrastructure. Borough &amp; Bankside is the Southwark
+      entertainment district. These are all genuine real-world LFB hotspots — validating geographic plausibility
+      without any hard-coded geographic rules.
+    </p>
+
+    <h3>Inference CLI</h3>
+    <div class="sample-block" style="font-size:0.82rem; color:#e2e8f0;">
+python src/infer.py --date 2024-11-05 --hour 21            # Bonfire Night
+python src/infer.py --temp 35 --rain 0 --wind 15           # heatwave
+python src/infer.py --temp 1 --rain 8 --wind 45            # storm
+python src/infer.py --n-rollouts 100 --temperature 0.7     # smoother surface
+    </div>
+  </section>
+
+  <!-- ── Remaining steps ───────────────────────────────────────── -->
+  <section>
+    <h2>Remaining Steps</h2>
+
+    <div class="pipeline">
+      <div class="phase next">
+        <div class="phase-num">⚠</div>
+        <div>
+          <div class="phase-title">Schema alignment with Person B (action required)</div>
+          <div class="phase-desc">
+            Person B's backend expects <code style="color:#fbbf24">ward_id</code> (ONS code e.g. "E05009317"),
+            and per-hour objects with <code style="color:#fbbf24">expected_count</code> + <code style="color:#fbbf24">dominant_type</code>.
+            Our current output uses <code style="color:#fbbf24">hourly_risk</code> (flat 24-value array).
+            Need to either: (a) add ONS ward code lookup to infer.py, or (b) confirm Person B has adapted to our schema.
+          </div>
+        </div>
+        <span class="badge next">Discuss</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">6</div>
+        <div>
+          <div class="phase-title">Evaluation — src/eval.py</div>
+          <div class="phase-desc">
+            MAE for hourly incident count · Top-k ward recall (lead metric for judges) ·
+            Calibration by risk decile · Per-incident-type error breakdown.
+            Output: <code style="color:#fbbf24">model/model_card.md</code>.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">7</div>
+        <div>
+          <div class="phase-title">forecast_24h.parquet deliverable</div>
+          <div class="phase-desc">
+            Required deliverable alongside the JSON. Simple conversion — write parquet from the same aggregated counts.
+            Useful for Person B's backend and any downstream analytics.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">8</div>
+        <div>
+          <div class="phase-title">DGX Spark technical note</div>
+          <div class="phase-desc">
+            Short pitch note: why local Spark is architecturally superior to cloud for this use case.
+            Key argument: live pump availability + active incidents must not leave the operational environment —
+            128GB unified memory keeps model + geospatial + agent context resident on one machine.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">9</div>
+        <div>
+          <div class="phase-title">Pre-generate demo scenario forecasts</div>
+          <div class="phase-desc">
+            Run infer.py for 3–4 canned scenarios (Bonfire Night, heatwave, winter storm, baseline Friday)
+            and cache the JSON files so the demo runs offline without re-inference.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Output schema ─────────────────────────────────────────── -->
+  <section>
+    <h2>Output Schema — forecast_24h.json (live, aligned with Person B)</h2>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">
+      Schema updated to match Person B's <code style="color:#fbbf24">/api/forecast</code> contract.
+      Each ward now contains a full <code style="color:#fbbf24">hourly</code> array with per-hour
+      <code style="color:#fbbf24">risk_score</code>, <code style="color:#fbbf24">expected_count</code>,
+      and <code style="color:#fbbf24">dominant_type</code>.
+      <strong style="color:#f87171;">Note for Person B:</strong> <code style="color:#fbbf24">ward_id</code>
+      uses a normalised slug (e.g. <code style="color:#fbbf24">"west_end"</code>,
+      <code style="color:#fbbf24">"holborn_and_covent_garden"</code>) rather than ONS codes —
+      GeoJSON polygon lookup should match on ward name, not ONS code.
+    </p>
+    <pre>{
+  <span class="key">"generated_at"</span>:  <span class="str">"2024-01-12T18:00:00Z"</span>,
+  <span class="key">"forecast_date"</span>:  <span class="str">"2024-01-13"</span>,
+  <span class="key">"forecast_from"</span>:  <span class="str">"2024-01-12T18:00:00"</span>,
+  <span class="key">"horizon_hours"</span>:  <span class="num">24</span>,
+  <span class="key">"model"</span>:          <span class="str">"gpt2-small-19.5M"</span>,
+  <span class="key">"n_rollouts"</span>:     <span class="num">5100</span>,
+  <span class="key">"weather_context"</span>: {
+    <span class="key">"temp_token"</span>: <span class="str">"&lt;TEMP_COLD&gt;"</span>, <span class="key">"rain_token"</span>: <span class="str">"&lt;RAIN_NONE&gt;"</span>, <span class="key">"wind_token"</span>: <span class="str">"&lt;WIND_CALM&gt;"</span>
+  },
+  <span class="key">"wards"</span>: [
+    {
+      <span class="key">"ward_id"</span>:     <span class="str">"west_end"</span>,            <span class="cmt">// normalised slug — match GeoJSON by ward_name</span>
+      <span class="key">"ward_name"</span>:   <span class="str">"West End"</span>,
+      <span class="key">"borough"</span>:     <span class="str">"Westminster"</span>,
+      <span class="key">"geometry_id"</span>: <span class="str">"west_end"</span>,            <span class="cmt">// same as ward_id</span>
+      <span class="key">"lat"</span>:         <span class="num">51.51407</span>,              <span class="cmt">// WGS84</span>
+      <span class="key">"lon"</span>:        <span class="num">-0.13358</span>,
+      <span class="key">"risk_score"</span>:  <span class="num">1.0000</span>,                <span class="cmt">// 24h summary, normalised 0–1 globally</span>
+      <span class="key">"hourly"</span>: [
+        {
+          <span class="key">"hour"</span>:           <span class="num">0</span>,
+          <span class="key">"risk_score"</span>:     <span class="num">0.2632</span>,          <span class="cmt">// normalised 0–1 globally across all wards+hours</span>
+          <span class="key">"expected_count"</span>: <span class="num">0.20</span>,            <span class="cmt">// avg incidents per rollout for this ward+hour</span>
+          <span class="key">"dominant_type"</span>:  <span class="str">"false_alarm"</span>   <span class="cmt">// most predicted type at this hour</span>
+        },
+        <span class="cmt">// ... 23 more hour objects</span>
+      ]
+    }
+  ]
+}</pre>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem; font-size:0.83rem;">
+      <div style="background:var(--mid); border:1px solid var(--border); border-radius:6px; padding:1rem;">
+        <div style="color:var(--orange); font-weight:600; margin-bottom:0.5rem;">For the map (Three.js surface)</div>
+        <div style="color:var(--muted);">
+          Use <code style="color:#fbbf24">risk_score</code> (top-level) for ward polygon height + colour.<br><br>
+          Use <code style="color:#fbbf24">hourly[h].risk_score</code> for the timeline scrubber animation.<br><br>
+          Use <code style="color:#fbbf24">hourly[h].dominant_type</code> for colour changes across the day.
+        </div>
+      </div>
+      <div style="background:var(--mid); border:1px solid var(--border); border-radius:6px; padding:1rem;">
+        <div style="color:var(--orange); font-weight:600; margin-bottom:0.5rem;">Incident type colours</div>
+        <div style="color:var(--muted);">
+          <span style="color:#f87171;">&#9632;</span> <code>dwelling_fire</code> — red<br>
+          <span style="color:#fb923c;">&#9632;</span> <code>outdoor_fire</code> — orange<br>
+          <span style="color:#94a3b8;">&#9632;</span> <code>false_alarm</code> — grey<br>
+          <span style="color:#60a5fa;">&#9632;</span> <code>special_service</code> — blue<br><br>
+          GeoJSON boundaries: <a href="https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london" style="color:#60a5fa;">London Datastore</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Foresight for Fires &nbsp;·&nbsp; NVIDIA Hack London &nbsp;·&nbsp; Generated 2026-06-06
+</footer>
+
+<script>
+// ── Loss curve ──────────────────────────────────────────────────────────────
+const epochs = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+const trainLoss = [1.5116,1.1229,1.1148,1.1106,1.1074,1.1045,1.1017,1.0987,1.0956,1.0924,1.0891,1.0858,1.0829,1.0803,1.0784];
+const valLoss   = [1.1054,1.0936,1.0905,1.0895,1.0875,1.0880,1.0851,1.0878,1.0867,1.0882,1.0873,1.0891,1.0892,1.0902,1.0915];
+
+new Chart(document.getElementById('lossChart'), {
+  type: 'line',
+  data: {
+    labels: epochs,
+    datasets: [
+      {
+        label: 'Train loss',
+        data: trainLoss,
+        borderColor: '#f76707',
+        backgroundColor: 'rgba(247,103,7,0.08)',
+        tension: 0.3,
+        pointRadius: 3,
+        fill: true,
+      },
+      {
+        label: 'Val loss',
+        data: valLoss,
+        borderColor: '#4299e1',
+        backgroundColor: 'rgba(66,153,225,0.08)',
+        tension: 0.3,
+        pointRadius: 3,
+        fill: true,
+      },
+      {
+        label: 'Best val (epoch 7)',
+        data: epochs.map((e,i) => e === 7 ? valLoss[i] : null),
+        borderColor: '#68d391',
+        backgroundColor: '#68d391',
+        pointRadius: 8,
+        pointStyle: 'star',
+        showLine: false,
+        spanGaps: false,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { labels: { color: '#e2e8f0', font: { size: 12 } } },
+      title:  { display: true, text: 'Training & Validation Loss — GPT-2 Small (15 epochs)', color: '#e2e8f0', font: { size: 14 } },
+      tooltip: { mode: 'index', intersect: false }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Epoch', color: '#94a3b8' },
+        ticks: { color: '#94a3b8' },
+        grid:  { color: '#2d3748' }
+      },
+      y: {
+        title: { display: true, text: 'Cross-entropy loss', color: '#94a3b8' },
+        ticks: { color: '#94a3b8' },
+        grid:  { color: '#2d3748' },
+        min: 1.07, max: 1.16
+      }
+    }
+  }
+});
+
+// ── GAP bucket chart ─────────────────────────────────────────────────────────
+new Chart(document.getElementById('gapChart'), {
+  type: 'bar',
+  data: {
+    labels: ['<5min','5-15min','15-30min','30-60min','1-2h','2-4h','4-8h','8-24h','1-2d','>2d'],
+    datasets: [{
+      label: 'Gap bucket',
+      data: [8, 12, 11, 13, 12, 11, 10, 12, 7, 4],
+      backgroundColor: [
+        '#e03131','#f76707','#f59f00','#f59f00',
+        '#2f9e44','#1971c2','#1971c2','#6741d9','#6741d9','#495057'
+      ],
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title:  { display: true, text: 'GAP token distribution (approximate % of incidents)', color: '#e2e8f0', font: { size: 13 } },
+    },
+    scales: {
+      x: { ticks: { color: '#94a3b8' }, grid: { color: '#2d3748' } },
+      y: {
+        title: { display: true, text: '% of incidents', color: '#94a3b8' },
+        ticks: { color: '#94a3b8' },
+        grid:  { color: '#2d3748' }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
