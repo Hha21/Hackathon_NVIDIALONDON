@@ -13,5 +13,10 @@ frontend/dist/
 data/raw/
 *.parquet
 
+# Model checkpoints (regenerate with train scripts)
+models/
+*.pt
+*.pkl
+
 # OS
 .DS_Store
