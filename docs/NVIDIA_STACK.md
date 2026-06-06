@@ -144,6 +144,41 @@ thinking on it emits a long `<think>` trace before the tool call (~3.8 s — fai
 
 ---
 
+## Operations & durability
+
+Both pieces run as **systemd `--user` services** on the Spark (user `nvidia` has
+`Linger=yes`, so they start on boot and survive logout — no sudo, no root). Both
+`Restart=always`, so a crash auto-recovers.
+
+| Service | What | Unit |
+| --- | --- | --- |
+| `foresight-nemotron.service` | llama.cpp serving Nemotron on `:8000` | `~/.config/systemd/user/foresight-nemotron.service` |
+| `foresight-tunnel.service` | cloudflared quick tunnel → `:8000` | `~/.config/systemd/user/foresight-tunnel.service` |
+
+```bash
+# on the Spark
+systemctl --user status foresight-nemotron foresight-tunnel
+systemctl --user restart foresight-nemotron      # reload the brain
+journalctl --user -u foresight-nemotron -n 50    # (logs also append to ~/llama_server.log, ~/cf.log)
+```
+
+**Known limitation — ephemeral tunnel URL.** This uses a Cloudflare *quick* tunnel,
+whose `*.trycloudflare.com` hostname is **random and changes every time
+`foresight-tunnel` restarts** (reboot/crash). When that happens the ElevenLabs agent
+points at a dead URL until re-synced. The tunnel service writes the current URL to
+`~/tunnel_url.txt` on each start. Re-sync after a restart:
+
+```bash
+# 1. read the new URL from the Spark
+ssh nvidia@scan-02.local 'cat ~/tunnel_url.txt'
+# 2. update elevenlabs/agent_configs/Foresight-Map.json -> custom_llm.url (append /v1)
+# 3. cd elevenlabs && elevenlabs agents push
+```
+
+For a **permanent** URL (no re-sync ever), upgrade the tunnel to a Cloudflare *named*
+tunnel (`cloudflared tunnel login` + a domain on the account) or an ngrok static
+domain, then bind `foresight-tunnel.service` to it.
+
 ## Honest scope + the NIM upgrade path
 
 - **What we use:** NVIDIA Nemotron model + DGX Spark GB10 + CUDA/Blackwell-NVFP4, all local.

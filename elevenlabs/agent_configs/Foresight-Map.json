@@ -64,7 +64,7 @@
                     "max_retrieved_rag_chunks_count": 20
                 },
                 "custom_llm": {
-                    "url": "https://ink-department-rides-bless.trycloudflare.com/v1",
+                    "url": "https://vitamin-reveals-incident-decision.trycloudflare.com/v1",
                     "model_id": "NVIDIA-Nemotron-3-Nano-Omni-30B-A3B-Reasoning-UD-Q4_K_XL.gguf",
                     "api_key": {
                         "secret_id": "PdExxkR8SwxWTHjken62"
