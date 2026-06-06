@@ -1,6 +1,7 @@
 // Step 5: hour 0->23 slider + play/pause that animates the surface.
-// Play steps the hour on an interval and loops; updates app `hour` so RiskMap3D
-// re-heights. Pure controlled component — parent owns `hour`.
+// Play advances a *continuous* fractional hour via requestAnimationFrame and
+// loops; RiskMap3D interpolates risk between adjacent hours so the surface
+// fades smoothly instead of snapping each hour. Parent owns `hour` (a float).
 import { useEffect, useRef, useState } from "react";
 
 type Props = {
@@ -8,23 +9,33 @@ type Props = {
   setHour: (h: number) => void;
 };
 
-const STEP_MS = 600;
+// Real-time ms spent per simulated hour. Higher = slower, smoother playback.
+const MS_PER_HOUR = 1800;
 
 export default function TimelineScrubber({ hour, setHour }: Props) {
   const [playing, setPlaying] = useState(false);
-  // mirror latest hour for the interval closure
+  // mirror latest hour for the rAF closure
   const hourRef = useRef(hour);
   hourRef.current = hour;
 
   useEffect(() => {
     if (!playing) return;
-    const id = window.setInterval(() => {
-      setHour((hourRef.current + 1) % 24);
-    }, STEP_MS);
-    return () => window.clearInterval(id);
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      setHour((hourRef.current + dt / MS_PER_HOUR) % 24);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [playing, setHour]);
 
-  const label = `${String(hour).padStart(2, "0")}:00`;
+  const t = ((hour % 24) + 24) % 24;
+  const hh = Math.floor(t);
+  const mm = Math.floor((t - hh) * 60);
+  const label = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 
   return (
     <div
@@ -57,8 +68,8 @@ export default function TimelineScrubber({ hour, setHour }: Props) {
         type="range"
         min={0}
         max={23}
-        step={1}
-        value={hour}
+        step="any"
+        value={t}
         onChange={(e) => {
           setPlaying(false);
           setHour(Number(e.target.value));

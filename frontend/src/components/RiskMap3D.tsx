@@ -352,29 +352,38 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
     }, 2500);
   };
 
-  const placed = useMemo(
-    () =>
-      wards.map((w) => {
-        const he =
-          w.hourly.find((h) => h.hour === hour) ??
-          w.hourly[0] ?? { risk_score: 0, expected_count: 0, dominant_type: "" };
-        const baseRisk = he.risk_score ?? 0;
-        const risk =
-          riskOverride && riskOverride[w.ward_id] !== undefined
-            ? riskOverride[w.ward_id]
-            : baseRisk;
-        const { x, z } = project(w.lat, w.lon, W, H);
-        return {
-          ward: w,
-          risk,
-          expected: he.expected_count ?? 0,
-          dominant: he.dominant_type ?? "",
-          x,
-          z,
-        };
-      }),
-    [wards, hour, riskOverride, W, H]
-  );
+  const placed = useMemo(() => {
+    // `hour` is a continuous float during playback: interpolate each ward's
+    // risk/expected between the two bracketing integer hours so columns fade
+    // and grow smoothly instead of snapping each hour.
+    const hf = ((hour % 24) + 24) % 24;
+    const h0 = Math.floor(hf) % 24;
+    const h1 = (h0 + 1) % 24;
+    const frac = hf - Math.floor(hf);
+    const EMPTY = { risk_score: 0, expected_count: 0, dominant_type: "" };
+    const sample = (w: WardForecast, hr: number) =>
+      w.hourly.find((h) => h.hour === hr) ?? w.hourly[0] ?? EMPTY;
+    const lerp = (a: number, b: number) => a * (1 - frac) + b * frac;
+
+    return wards.map((w) => {
+      const a = sample(w, h0);
+      const b = sample(w, h1);
+      const baseRisk = lerp(a.risk_score ?? 0, b.risk_score ?? 0);
+      const risk =
+        riskOverride && riskOverride[w.ward_id] !== undefined
+          ? riskOverride[w.ward_id]
+          : baseRisk;
+      const { x, z } = project(w.lat, w.lon, W, H);
+      return {
+        ward: w,
+        risk,
+        expected: lerp(a.expected_count ?? 0, b.expected_count ?? 0),
+        dominant: (frac < 0.5 ? a.dominant_type : b.dominant_type) ?? "",
+        x,
+        z,
+      };
+    });
+  }, [wards, hour, riskOverride, W, H]);
 
   // Centroid of the ward cluster (where the data lives) — camera frames here so
   // the focus area fills the view even when the basemap is all of London.
