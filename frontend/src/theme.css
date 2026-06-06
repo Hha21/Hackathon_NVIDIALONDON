@@ -110,6 +110,15 @@ body {
     transform: rotate(360deg);
   }
 }
+/* VoiceAgent mic button glow while the agent is speaking */
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 14px #27e0ff;
+  }
+  50% {
+    box-shadow: 0 0 30px #27e0ff;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation-duration: 2s;

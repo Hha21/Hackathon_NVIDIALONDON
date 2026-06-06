@@ -8,7 +8,7 @@
 //   - hover tooltip: ward name, risk, expected_count, dominant_type.
 //   - `riskOverride` (scenario scenario_risk by ward_id) replaces baseline risk.
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useLoader } from "@react-three/fiber";
+import { Canvas, useLoader, useFrame } from "@react-three/fiber";
 import {
   OrbitControls,
   Html,
@@ -240,6 +240,79 @@ function Buildings({ W, H, s }: { W: number; H: number; s: number }) {
   );
 }
 
+// Smoothly flies OrbitControls toward a focus point (voice "focus_ward"); when
+// focus clears it eases back to the home framing and re-enables auto-rotate.
+// Must live inside <Canvas> to use useFrame.
+type Target = { x: number; z: number; dist: number };
+function CameraRig({
+  controls,
+  target,
+  home,
+}: {
+  controls: React.RefObject<any>;
+  target: Target | null;
+  home: Target;
+}) {
+  const settling = useRef(false); // true while easing back home after a focus
+  const tp = useRef(new THREE.Vector3());
+  const cp = useRef(new THREE.Vector3());
+  useFrame(() => {
+    const c = controls.current;
+    if (!c) return;
+    if (target) settling.current = true;
+    if (!target && !settling.current) return; // never focused -> leave controls alone
+    const d = target ?? home;
+    if (target) c.autoRotate = false;
+    tp.current.set(d.x, 3, d.z);
+    cp.current.set(d.x, d.dist * 0.7, d.z + d.dist);
+    c.target.lerp(tp.current, 0.07);
+    c.object.position.lerp(cp.current, 0.07);
+    c.update();
+    if (!target && c.object.position.distanceTo(cp.current) < 1.5) {
+      settling.current = false; // arrived home -> hand back to idle auto-rotate
+      c.autoRotate = true;
+    }
+  });
+  return null;
+}
+
+// Jarvis-style highlight: a steady glowing ring + an expanding pulse that fades
+// out, repeating. Bloom (post-processing) turns the bright color into a glow.
+function FocusBorder({
+  x,
+  z,
+  color = "#27e0ff",
+  radius = 2.4,
+}: {
+  x: number;
+  z: number;
+  color?: string;
+  radius?: number;
+}) {
+  const pulse = useRef<THREE.Mesh>(null);
+  const t = useRef(0);
+  useFrame((_, dt) => {
+    t.current = (t.current + dt * 0.8) % 1;
+    const m = pulse.current;
+    if (!m) return;
+    const s = 1 + t.current * 2.5;
+    m.scale.set(s, s, 1);
+    (m.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t.current);
+  });
+  return (
+    <group position={[x, 0.12, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh>
+        <ringGeometry args={[radius, radius * 1.18, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={0.95} toneMapped={false} />
+      </mesh>
+      <mesh ref={pulse}>
+        <ringGeometry args={[radius, radius * 1.08, 64]} />
+        <meshBasicMaterial color={color} transparent toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
 function RiskColumn({
   ward,
   risk,
@@ -332,9 +405,19 @@ type Props = {
   wards: WardForecast[];
   hour: number;
   riskOverride?: Record<string, number>;
+  /** ward_id to fly to + ring (voice "focus_ward"); null = home overview */
+  focusWardId?: string | null;
+  /** ward_ids to border-glow (voice "highlight_risk") */
+  highlightSet?: Set<string>;
 };
 
-export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
+export default function RiskMap3D({
+  wards,
+  hour,
+  riskOverride,
+  focusWardId,
+  highlightSet,
+}: Props) {
   const [hovered, setHovered] = useState<string | null>(null);
   const { W, H, s } = useMemo(planeSize, []);
 
@@ -394,6 +477,27 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
       z: placed.reduce((a, p) => a + p.z, 0) / placed.length,
     };
   }, [placed]);
+
+  // Voice focus: fly target for the named ward (null => home overview).
+  const home = useMemo<Target>(() => ({ x: center.x, z: center.z, dist: 42 }), [center.x, center.z]);
+  const focusTarget = useMemo<Target | null>(() => {
+    if (!focusWardId) return null;
+    const p = placed.find((p) => p.ward.ward_id === focusWardId);
+    return p ? { x: p.x, z: p.z, dist: 20 } : null;
+  }, [focusWardId, placed]);
+
+  // Wards to ring: the single voice-focused ward + any risk-highlighted set.
+  const rings = useMemo(() => {
+    const out: { x: number; z: number; color: string }[] = [];
+    if (highlightSet) {
+      for (const p of placed) {
+        if (highlightSet.has(p.ward.ward_id)) out.push({ x: p.x, z: p.z, color: "#ff5a3c" });
+      }
+    }
+    const f = placed.find((p) => p.ward.ward_id === focusWardId);
+    if (f) out.push({ x: f.x, z: f.z, color: "#27e0ff" });
+    return out;
+  }, [placed, highlightSet, focusWardId]);
 
   // Only the top-N highest-risk wards get a standing label (declutter at scale).
   const labelSet = useMemo(() => {
@@ -458,9 +562,9 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
         far={22}
         color="#01030a"
       />
-      {placed.map((p) => (
+      {placed.map((p, i) => (
         <RiskColumn
-          key={p.ward.ward_id}
+          key={`${p.ward.ward_id}-${i}`}
           ward={p.ward}
           risk={p.risk}
           expected={p.expected}
@@ -472,6 +576,10 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
           onHover={setHovered}
         />
       ))}
+      {rings.map((r, i) => (
+        <FocusBorder key={`${r.color}-${i}`} x={r.x} z={r.z} color={r.color} />
+      ))}
+      <CameraRig controls={controlsRef} target={focusTarget} home={home} />
       <OrbitControls
         ref={controlsRef}
         makeDefault

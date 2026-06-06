@@ -1,0 +1,10 @@
+{
+    "agents": [
+        {
+            "config": "agent_configs/Foresight-Map.json",
+            "id": "agent_0801ktesr0p9fqsasacrwatev15k",
+            "version_id": "agtvrsn_1401ktetyenbfadbnhwjrawcxdfq",
+            "branch_id": "agtbrch_5801ktesr1dje49v8r0htte8r3ta"
+        }
+    ]
+}
