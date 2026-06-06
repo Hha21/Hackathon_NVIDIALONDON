@@ -306,6 +306,7 @@ def run_inference(args):
         "forecast_from":  dt.strftime("%Y-%m-%dT%H:%M:%S"),
         "horizon_hours":  24,
         "model":          "gpt2-small-19.5M",
+        "device":         (torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu"),
         "n_rollouts":     total_rollouts,
         "context_tokens": ctx_tokens,
         "weather_context": {

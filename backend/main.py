@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.loader import forecast_available
+from backend.loader import forecast_available, load_forecast
 from backend.schemas import Health
 from backend.routes import forecast, scenario, mobile, ask
 
@@ -37,9 +37,18 @@ app.include_router(ask.router)
 @app.get("/health", response_model=Health)
 def health() -> Health:
     avail = forecast_available()
+    # Report the real inference device recorded by the model at generation time
+    # (src/infer.py stamps torch.cuda.get_device_name). Fall back gracefully so
+    # the panel never claims hardware that wasn't used.
+    device = "unknown"
+    if avail:
+        try:
+            device = load_forecast().get("device", "unknown")
+        except Exception:
+            device = "unknown"
     return Health(
         status="ok",
         model_loaded=avail,          # MVP: forecast file present == model output ready
         forecast_available=avail,
-        device="DGX Spark local",
+        device=device,
     )

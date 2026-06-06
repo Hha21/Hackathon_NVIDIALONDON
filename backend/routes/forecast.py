@@ -26,10 +26,15 @@ def get_forecast(district: str = "Lewisham", incident_type: str = "all") -> Fore
         raise HTTPException(status_code=503, detail="forecast not available")
 
     data = load_forecast()
+    data_district = data.get("district")  # A's real all-London forecast omits this
 
-    # District match (single-district demo: top-level field). Mismatch -> empty.
-    if district and data.get("district", "").lower() != district.lower():
-        data = {**data, "district": district, "wards": []}
+    # District match only when the forecast is scoped to a single district.
+    # A's all-London forecast has no top-level district -> serve every ward.
+    if district and data_district and data_district.lower() != district.lower():
+        return ForecastResponse(**{**data, "district": district, "wards": []})
+
+    # Ensure the required `district` field is always present for the response.
+    data = {**data, "district": data_district or district or "Greater London"}
 
     if incident_type and incident_type != "all":
         data = copy.deepcopy(data)
