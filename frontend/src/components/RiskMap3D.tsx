@@ -519,6 +519,9 @@ export default function RiskMap3D({
 
   return (
     <Canvas
+      // cap pixel ratio: Retina/HiDPI default to 2 (4x pixels to shade); 1.5 is
+      // the sweet spot — ~45% fewer fragments, edges barely softer.
+      dpr={[1, 1.5]}
       camera={{ position: [center.x, 34, center.z + 42], fov: 45 }}
       gl={{
         alpha: true,
@@ -556,7 +559,7 @@ export default function RiskMap3D({
       <ContactShadows
         position={[center.x, 0.03, center.z]}
         scale={120}
-        resolution={1024}
+        resolution={512}
         blur={2.6}
         opacity={0.55}
         far={22}
