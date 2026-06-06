@@ -221,7 +221,7 @@ def run_inference(args):
         )
 
         with torch.no_grad():
-            out = model.generate(
+            out = model.generate_cached(
                 prompt,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
@@ -343,7 +343,7 @@ def main():
     p.add_argument("--temp",           type=float, default=None, help="Temperature °C override")
     p.add_argument("--rain",           type=float, default=None, help="Rainfall mm/h override")
     p.add_argument("--wind",           type=float, default=None, help="Wind speed km/h override")
-    p.add_argument("--n-rollouts",     type=int,   default=50,   help="Rollouts per station (default: 50)")
+    p.add_argument("--n-rollouts",     type=int,   default=20,   help="Rollouts per station (default: 20)")
     p.add_argument("--temperature",    type=float, default=0.85, help="Sampling temperature (default: 0.85)")
     p.add_argument("--top-k",          type=int,   default=40,   help="Top-k sampling (default: 40)")
     p.add_argument("--max-new-tokens", type=int,   default=150,  help="Tokens per rollout (default: 150)")

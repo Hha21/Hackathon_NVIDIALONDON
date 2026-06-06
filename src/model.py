@@ -101,6 +101,36 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         return self.resid_drop(self.c_proj(y))
 
+    def forward_kv(
+        self,
+        x:        torch.Tensor,
+        past_kv:  tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        """Forward pass with KV-cache read/write. Used by GPT.generate_cached."""
+        B, T, C = x.shape
+        q, k, v = self.c_attn(x).split(self.d_model, dim=2)
+        q = q.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        k = k.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+        v = v.view(B, T, self.n_head, self.head_dim).transpose(1, 2)
+
+        if past_kv is not None:
+            past_k, past_v = past_kv
+            k = torch.cat([past_k, k], dim=2)
+            v = torch.cat([past_v, v], dim=2)
+
+        # Prefill (past_kv is None, T > 1): standard causal mask.
+        # Decode (past_kv present, T == 1): single query attends to all cached
+        # positions — no mask needed (is_causal=True over (1, T_total) would
+        # incorrectly mask all but the first key).
+        y = F.scaled_dot_product_attention(
+            q, k, v,
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=(past_kv is None),
+        )
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        return self.resid_drop(self.c_proj(y)), (k, v)
+
 
 class MLP(nn.Module):
     def __init__(self, cfg: GPTConfig):
@@ -126,6 +156,16 @@ class Block(nn.Module):
         x = x + self.attn(self.ln1(x))   # pre-norm residual
         x = x + self.mlp(self.ln2(x))
         return x
+
+    def forward_kv(
+        self,
+        x:       torch.Tensor,
+        past_kv: tuple | None = None,
+    ) -> tuple[torch.Tensor, tuple]:
+        attn_out, new_kv = self.attn.forward_kv(self.ln1(x), past_kv=past_kv)
+        x = x + attn_out
+        x = x + self.mlp(self.ln2(x))
+        return x, new_kv
 
 
 # ── GPT model ─────────────────────────────────────────────────────────────────
@@ -221,6 +261,68 @@ class GPT(nn.Module):
             probs  = F.softmax(logits, dim=-1)
             next_t = torch.multinomial(probs, num_samples=1)
             idx    = torch.cat([idx, next_t], dim=1)
+
+        return idx
+
+    @torch.no_grad()
+    def generate_cached(
+        self,
+        idx:            torch.Tensor,
+        max_new_tokens: int,
+        temperature:    float = 1.0,
+        top_k:          int | None = 50,
+    ) -> torch.Tensor:
+        """
+        KV-cached autoregressive generation.  Drop-in replacement for generate().
+
+        Complexity: O(T) per decode step instead of O(T²) — prefill encodes the
+        prompt once, then each subsequent step processes a single new token against
+        the cached K/V tensors.  Supports any batch size B.
+
+        Args:
+            idx: (B, T_prompt) token indices
+        Returns:
+            (B, T_prompt + max_new_tokens) token indices
+        """
+        B, T_prompt = idx.shape
+        max_gen = min(max_new_tokens, self.cfg.seq_len - T_prompt)
+
+        # -- Prefill: encode full prompt, build initial KV cache ---------------
+        pos = torch.arange(T_prompt, device=idx.device).unsqueeze(0)
+        x = self.transformer.drop(
+            self.transformer.wte(idx) + self.transformer.wpe(pos)
+        )
+        past_kvs: list = []
+        for block in self.transformer.h:
+            x, kv = block.forward_kv(x, past_kv=None)
+            past_kvs.append(kv)
+        x = self.transformer.ln_f(x)
+        logits = self.lm_head(x)[:, -1, :]   # (B, vocab) — last prompt position
+
+        # -- Decode: one new token per step, O(T) per step --------------------
+        for step in range(max_gen):
+            scaled = logits / temperature
+            if top_k is not None:
+                v, _ = torch.topk(scaled, min(top_k, scaled.size(-1)))
+                scaled[scaled < v[:, [-1]]] = float("-inf")
+            next_t = torch.multinomial(F.softmax(scaled, dim=-1), num_samples=1)
+            idx = torch.cat([idx, next_t], dim=1)
+
+            if step == max_gen - 1:
+                break  # no need to compute logits after the last token
+
+            # Absolute position of the token we just appended
+            cur_pos = torch.full((B, 1), T_prompt + step, device=idx.device)
+            x = self.transformer.drop(
+                self.transformer.wte(next_t) + self.transformer.wpe(cur_pos)
+            )
+            new_kvs: list = []
+            for i, block in enumerate(self.transformer.h):
+                x, kv = block.forward_kv(x, past_kv=past_kvs[i])
+                new_kvs.append(kv)
+            past_kvs = new_kvs
+            x = self.transformer.ln_f(x)
+            logits = self.lm_head(x)[:, -1, :]   # (B, vocab)
 
         return idx
 
