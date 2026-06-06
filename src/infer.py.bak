@@ -210,25 +210,17 @@ def run_inference(args):
             continue
 
         seed = list(prefix) + [seed_dt, stn_tok_id]
-        # Batch all rollouts for this station into one generate() call: (n_rollouts, T).
-        # generate() is batch-agnostic, so this saturates the GPU instead of issuing
-        # n_rollouts serial batch-1 calls (~50x fewer kernel launches → seconds not minutes).
-        prompt = (
-            torch.tensor(seed, dtype=torch.long)
-            .unsqueeze(0)
-            .repeat(args.n_rollouts, 1)
-            .to(device)
-        )
+        prompt = torch.tensor(seed, dtype=torch.long).unsqueeze(0).to(device)
 
-        with torch.no_grad():
-            out = model.generate(
-                prompt,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                top_k=args.top_k,
-            )
-        for r in range(out.size(0)):
-            tokens    = [inv_vocab.get(int(t), "?") for t in out[r].tolist()]
+        for _ in range(args.n_rollouts):
+            with torch.no_grad():
+                out = model.generate(
+                    prompt,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    top_k=args.top_k,
+                )
+            tokens    = [inv_vocab.get(int(t), "?") for t in out[0].tolist()]
             generated = tokens[len(seed):]
             for inc in parse_rollout(generated, forecast_hours=24):
                 count[inc["ward"]][inc["type"]][inc["hour"]] += 1
