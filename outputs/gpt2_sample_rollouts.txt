@@ -1,0 +1,140 @@
+================================================================================
+  FORESIGHT FOR FIRES — GPT-2 MODEL SAMPLE ROLLOUTS
+  London Fire Brigade Incident Sequence Model
+  Model: GPT-2 Small (19.5M params) | Epoch 7/15 | Val Loss: 1.0851
+  Trained on: 1.6M LFB incidents (2009-2022)
+================================================================================
+
+HOW TO READ THIS:
+  Each scenario shows a model-sampled sequence of predicted incidents.
+  The model is given an 8-token context (time, weather, era) and
+  autoregressively generates realistic incident sequences.
+  Each row = one predicted incident event.
+
+KEY FIELDS FOR THE MAP:
+  Ward     -> polygon on the map (GeoJSON ward boundary)
+  Station  -> responding fire station
+  Type     -> colour/icon on map (Dwelling Fire=red, Outdoor=orange,
+              False Alarm=grey, Special Service=blue)
+  Gap      -> time since previous incident (useful for animation/timeline)
+
+JSON SCHEMA (for Phase 5 forecast_24h.json output):
+  {
+    "generated_at": "2024-01-12T18:00:00Z",
+    "forecast_date": "2024-01-13",
+    "wards": [
+      {
+        "ward_name": "Gospel Oak",
+        "borough":   "Camden",
+        "lat": 51.554,
+        "lon": -0.163,
+        "risk_score": 0.72,          // 0.0-1.0, use for heatmap opacity
+        "hourly_risk": [0.1, 0.1, ...],  // 24 values, one per hour
+        "top_type": "false_alarm",    // dominant predicted incident type
+        "type_breakdown": {
+          "dwelling_fire":  0.08,
+          "outdoor_fire":   0.05,
+          "false_alarm":    0.52,
+          "special_service":0.35
+        }
+      }
+    ]
+  }
+
+────────────────────────────────────────────────────────────────────────────────
+
+SCENARIO: Friday evening, mild & dry  (busy period baseline)
+Datetime : 2024-01-12 18:00:00
+Context  : FRI 18:00  |  JAN  |  Temp:COLD  Rain:NONE  Wind:CALM  |  Era:POST_GRENFELL
+
+  #    Gap to prev       Station                 Ward                                  Incident Type         Outcome                           Property
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  1    4-8 hours         Stoke Newington         Mildmay                               Special Service       Special service call              Residential dwelling
+  2    30-60 min         Stoke Newington         Stoke Newington                       False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  3    4-8 hours         Stoke Newington         Woodberry Down                        False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  4    8-24 hours        Stoke Newington         Hackney Downs                         Special Service       Special service call              Outdoor location
+  5    15-30 min         Stoke Newington         Hackney Downs                         Dwelling Fire         Confirmed primary fire            Residential dwelling
+  6    2-4 hours         Stoke Newington         Clissold                              Outdoor Fire          Secondary/small fire              Outdoor structure
+  7    8-24 hours        Stoke Newington         Springfield                           Dwelling Fire         Confirmed primary fire            Residential dwelling
+  8    4-8 hours         Stoke Newington         Hackney Downs                         Dwelling Fire         Confirmed primary fire            Residential dwelling
+  9    8-24 hours        Stoke Newington         Springfield                           False Alarm           False alarm, good intent          Residential dwelling
+  10   4-8 hours         Stoke Newington         Springfield                           False Alarm           False alarm, good intent          Residential dwelling
+  11   4-8 hours         Stoke Newington         Clissold                              Special Service       Special service call              Residential dwelling
+  12   4-8 hours         Stoke Newington         Mildmay                               False Alarm           False alarm, good intent          Residential dwelling
+  13   1-2 hours         Stoke Newington         Stamford Hill West                    Outdoor Fire          Secondary/small fire              Outdoor structure
+
+────────────────────────────────────────────────────────────────────────────────
+
+SCENARIO: Bonfire Night — 5 Nov 2023, 21:00 (outdoor fire spike expected)
+Datetime : 2023-11-05 21:00:00
+Context  : SUN 21:00  |  NOV  |  Temp:MILD  Rain:NONE  Wind:BREEZY  |  Era:POST_GRENFELL
+
+  #    Gap to prev       Station                 Ward                                  Incident Type         Outcome                           Property
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  1    30-60 min         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  2    8-24 hours        Croydon                 South Croydon                         False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  3    1-2 hours         Croydon                 Waddon                                Special Service       Special service call              Residential dwelling
+  4    2-4 hours         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  5    30-60 min         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  6    4-8 hours         Croydon                 Fairfield                             Special Service       Special service call              Non-residential building
+  7    4-8 hours         Croydon                 Sanderstead                           Outdoor Fire          Secondary/small fire              Outdoor location
+  8    4-8 hours         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  9    30-60 min         Croydon                 South Croydon                         False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  10   2-4 hours         Croydon                 Park Hill & Whitgift                  False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  11   2-4 hours         Croydon                 Broad Green                           False Alarm           False alarm, good intent          Residential dwelling
+  12   2-4 hours         Croydon                 South Croydon                         False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+  13   4-8 hours         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Non-residential building
+
+────────────────────────────────────────────────────────────────────────────────
+
+SCENARIO: Hot dry summer afternoon — 12 Aug 2022, 14:00
+Datetime : 2022-08-12 14:00:00
+Context  : FRI 14:00  |  AUG  |  Temp:HOT  Rain:NONE  Wind:BREEZY  |  Era:POST_GRENFELL
+
+  #    Gap to prev       Station                 Ward                                  Incident Type         Outcome                           Property
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  1    2-4 hours         Croydon                 Fairfield                             False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  2    < 5 min           Croydon                 Fairfield                             Special Service       Automatic fire alarm (no fire)    Non-residential building
+  3    8-24 hours        Croydon                 Waddon                                Special Service       Special service call              Road vehicle
+  4    4-8 hours         Croydon                 Waddon                                Outdoor Fire          Special service call              Residential dwelling
+  5    4-8 hours         Croydon                 Broad Green                           False Alarm           Secondary/small fire              Outdoor location
+  6    1-2 hours         Croydon                 Broad Green                           Dwelling Fire         Automatic fire alarm (no fire)    Residential dwelling
+  7    < 5 min           Croydon                 South Croydon                         Dwelling Fire         Confirmed primary fire            Residential dwelling
+  8    2-4 hours         Croydon                 Broad Green                           Special Service       Confirmed primary fire            Residential dwelling
+  9    4-8 hours         Croydon                 Waddon                                False Alarm           Special service call              Residential dwelling
+  10   1-2 hours         Croydon                 Fairfield                             Outdoor Fire          False alarm, good intent          Outdoor location
+  11   8-24 hours        Croydon                 Selhurst                              Special Service       Secondary/small fire              Outdoor structure
+  12   1-2 hours         Croydon                 Selhurst                              False Alarm           Special service call              Residential dwelling
+  13   8-24 hours        Croydon                 Fairfield                             False Alarm           False alarm, good intent          Residential dwelling
+
+────────────────────────────────────────────────────────────────────────────────
+
+SCENARIO: Winter storm, 3am — cold, heavy rain, storm-force winds
+Datetime : 2024-01-15 03:00:00
+Context  : MON 3:00  |  JAN  |  Temp:FREEZING  Rain:HEAVY  Wind:STORM  |  Era:POST_GRENFELL
+
+  #    Gap to prev       Station                 Ward                                  Incident Type         Outcome                           Property
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  1    30-60 min         Peckham                 Peckham                               False Alarm           False alarm, good intent          Residential dwelling
+  2    8-24 hours        Peckham                 Camberwell Green                      False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  3    2-4 hours         Peckham                 Camberwell Green                      Special Service       Special service call              Residential dwelling
+  4    8-24 hours        Peckham                 St. Giles                             Outdoor Fire          Secondary/small fire              Outdoor location
+  5    2-4 hours         Peckham                 Goose Green                           False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  6    1-2 hours         Peckham                 Camberwell Green                      Outdoor Fire          Secondary/small fire              Outdoor location
+  7    8-24 hours        Peckham                 Camberwell Green                      Special Service       Special service call              Residential dwelling
+  8    1-2 hours         Peckham                 Goose Green                           False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  9    30-60 min         Peckham                 Goose Green                           False Alarm           False alarm, good intent          Non-residential building
+  10   2-4 hours         Peckham                 Peckham                               Special Service       Special service call              Residential dwelling
+  11   30-60 min         Peckham                 Rye Lane                              False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  12   8-24 hours        Peckham                 Goose Green                           False Alarm           Automatic fire alarm (no fire)    Non-residential building
+  13   1-2 hours         Peckham                 Rye Lane                              False Alarm           Automatic fire alarm (no fire)    Residential dwelling
+
+────────────────────────────────────────────────────────────────────────────────
+
+NOTES FOR MAP TEAM:
+  1. Ward names map to GeoJSON ward boundaries (London Datastore)
+     https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london
+  2. Use "risk_score" field from forecast_24h.json for heatmap colour scale
+  3. "hourly_risk" gives 24 values for timeline scrubbing (hour slider)
+  4. "top_type" drives the dominant colour: red/orange/grey/blue
+  5. Coordinate reference: WGS84 (standard lat/lon)
