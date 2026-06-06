@@ -399,27 +399,6 @@ foresight-for-fires/
 
 ---
 
-## Judging Criteria
-
-| Criterion | Pts | Our story |
-|---|---|---|
-| **Technical Execution** — Completeness (15) + Technical Depth (15) | 30 | Full local data-to-decision pipeline: raw LFB CSV → GPU preprocessing → GPT-2 training from scratch → KV-cached inference → 24h ward risk → 3D web viz → mobile dispatch. Everything runs end-to-end; no API calls to external models. |
-| **NVIDIA / Spark** — The Stack (15) + Spark Story (15) | 30 | PyTorch CUDA training + inference on GB10. 128 GB unified memory keeps model + geo + agent resident. KV-cached batched rollouts exploit GPU parallelism. Sensitive operational data never leaves the machine. |
-| **Value & Impact** — Insight Quality (10) + Usability (10) | 20 | Decision support for pre-positioning scarce standby resources when coverage is degraded. Three interfaces: 3D web dashboard, Android dispatch app, voice assistant. |
-| **Innovation & Execution** — Creativity (10) + Performance (10) | 20 | Incident history as a language; dynamic ward risk surface; scenario-conditioned planning; mobile dispatch loop; local voice assistant with 12 map-control tools. |
-
----
-
-## Known Limitations & Next Steps
-
-- **Globe tab on Android** — currently uses client-side simulated risk data. The `/api/forecast` endpoint exists and returns the real per-ward hourly forecast; wiring the Globe tab to consume it is a straightforward fetch call.
-- **Crew count** — shown as a static value in the Android app; not part of the current `MobileState` schema.
-- **Ward geometry** — ward boundaries use centroid lat/lon for column placement rather than full polygon outlines. ONS boundary GeoJSON would enable true ward shading.
-- **Live weather** — weather context is passed as CLI args or uses a historical lookup table. A Met Office API integration would make the forecast fully live.
-- **ElevenLabs bounty** — the persistent agent session targeting ≥1h11m continuous conversation with Nemotron + ElevenLabs voice I/O is in progress (`docs/AGENT_EXPANSION_PLAN.md`).
-
----
-
 ## Team
 
 | Name | Role | Contact |
