@@ -251,6 +251,88 @@ so the agent waits for the numbers before speaking.
 
 ---
 
+## 6c. Agent capability roadmap (A / B / C / E)
+
+Beyond driving the camera, the agent gains **knowledge** and **reasoning** tools.
+Design rule that keeps it fast:
+
+- **Client tool** when the browser already has the data or owns the UI state
+  (the forecast for all 673 wards is already in memory, plus timeline/filter
+  state). Instant, no network. Data-returning client tools set
+  `expects_response = true` so Nemotron waits for the values, then speaks them.
+- **Server tool** (webhook → FastAPI on the Spark) when it needs compute,
+  station data, scenario logic, or private historical data. Reachable from the
+  EL cloud via the same cloudflared tunnel.
+
+```mermaid
+flowchart LR
+    subgraph EL["ElevenLabs (Nemotron @ Spark brain)"]
+        BR["picks a tool"]
+    end
+    subgraph CLIENT["Client tools — browser (has forecast + UI state)"]
+        A1["get_ward_info"]:::c
+        A2["compare_wards"]:::c
+        A3["rank_hotspots"]:::c
+        A4["ward_trend"]:::c
+        C2["situation_report"]:::c
+        C3["shift_handover"]:::c
+        E1["scrub_time"]:::c
+        E2["filter_incident"]:::c
+        E3["compare_split"]:::c
+    end
+    subgraph SERVER["Server tools — FastAPI on Spark"]
+        B1["recommend_deployment"]:::s
+        B2["run_what_if → /scenario"]:::s
+        B3["nearest_resource"]:::s
+        C1["weather_impact (Open-Meteo)"]:::s
+    end
+    BR --> CLIENT
+    BR --> SERVER
+    classDef c fill:#0c2530,stroke:#27e0ff,color:#cdefff;
+    classDef s fill:#2a1c30,stroke:#c07fff,color:#eedcff;
+```
+
+### A — Ward intelligence (client tools; reads in-memory forecast)
+
+| Tool | Params | Returns / does | resp |
+| --- | --- | --- | --- |
+| `get_ward_info` | `wardName` | risk, expected_count, dominant_type, rank @ current hour | ✅ |
+| `compare_wards` | `wardA`, `wardB` | which is higher risk + both stats | ✅ |
+| `rank_hotspots` | `n` (default 5) | top-N wards by risk **and rings them on the map** | ✅ |
+| `ward_trend` | `wardName` | 24h risk curve + peak hour | ✅ |
+
+### B — Dispatch reasoning (server tools → FastAPI on Spark)
+
+| Tool | Params | Backend | resp |
+| --- | --- | --- | --- |
+| `recommend_deployment` | — | `scenario_logic` + pump availability + station coords → pre-position advice | ✅ |
+| `run_what_if` | `description` | `POST /api/scenario` → speaks the risk delta | ✅ |
+| `nearest_resource` | `wardName` | new endpoint: closest available station/pump (station math) | ✅ |
+
+This is the layer that most justifies Nemotron — multi-step reasoning over live
+state, on owned hardware.
+
+### C — Live context fusion
+
+| Tool | Params | Type | resp |
+| --- | --- | --- | --- |
+| `weather_impact` | — | server: Open-Meteo → reason wind/rain × risk | ✅ |
+| `situation_report` | — | client: summarise whole-borough forecast → spoken brief | ✅ |
+| `shift_handover` | — | client: end-of-shift summary | ✅ |
+
+### E — Map control by voice (client tools; own UI state)
+
+| Tool | Params | Does | resp |
+| --- | --- | --- | --- |
+| `scrub_time` | `hour` (0–23) | moves the timeline scrubber (`setHour`) | ✕ |
+| `filter_incident` | `type` | sets the incident filter dropdown | ✕ |
+| `compare_split` | `wardA`, `wardB` | rings both wards at once | ✕ |
+
+Each new tool = one `elevenlabs tools add … --type client|webhook`, edit its
+config, attach its id to the agent, `elevenlabs tools push && elevenlabs agents
+push`. Client tools also need a matching `useConversationClientTool` handler in
+`VoiceAgent.tsx`; server tools need the FastAPI endpoint.
+
 ## 7. Frontend integration map
 
 ```mermaid
@@ -300,5 +382,8 @@ VITE_ELEVENLABS_AGENT_ID=agent_0801ktesr0p9fqsasacrwatev15k
 - [ ] `RiskMap3D` camera fly + Jarvis border + highlight set
 - [ ] `App.tsx` wiring + `.env`
 - [ ] Phase 2: Nemotron on Spark + cloudflared + flip `custom_llm`
-- [ ] Phase 2b: `get_ward_info` server tool → backend, so the agent can *answer* about a ward (risk / incidents), not just zoom
+- [ ] **A — ward intelligence** (client): `get_ward_info`, `compare_wards`, `rank_hotspots`, `ward_trend`
+- [ ] **B — dispatch reasoning** (server): `recommend_deployment`, `run_what_if`, `nearest_resource`
+- [ ] **C — live context**: `weather_impact` (server), `situation_report`, `shift_handover` (client)
+- [ ] **E — map control** (client): `scrub_time`, `filter_incident`, `compare_split`
 ```
