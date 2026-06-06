@@ -117,26 +117,26 @@ The system has four layers:
 
 ```mermaid
 flowchart LR
-    A[LFB Open Incident Dataset<br/>2009-present] --> B[Data Ingestion Pipeline]
+    A[LFB Open Incident Dataset 2009-present] --> B[Data Ingestion Pipeline]
     W[Weather / Calendar / Event Context] --> B
     G[Ward + Station Geo Data] --> B
 
-    B --> C[GPU-Accelerated Processing<br/>RAPIDS/cuDF if available]
-    C --> D[Feature Store<br/>Parquet/SQLite/PostGIS-lite]
+    B --> C[GPU-Accelerated Processing - RAPIDS/cuDF]
+    C --> D[Feature Store - Parquet/SQLite]
 
-    D --> E1[Baseline Risk Model<br/>Hourly Ward Forecast]
-    D --> E2[GPT-2 Causal Transformer<br/>Incident Token Sequence Model]
+    D --> E1[Baseline Risk Model - Hourly Ward Forecast]
+    D --> E2[GPT-2 Causal Transformer - Token Sequence Model]
 
-    E1 --> F[Forecast Generator<br/>Next 24h ward risk]
+    E1 --> F[Forecast Generator - Next 24h ward risk]
     E2 --> F
 
     F --> H[FastAPI Backend]
 
-    H --> I[Three.js Web Dashboard<br/>3D Ward Risk Surface]
-    H --> J[Android Dispatch App<br/>Mock Scenario + Routing]
-    H --> K[Local NL/Voice Agent<br/>Nemotron/NIM/ElevenLabs]
+    H --> I[Three.js Web Dashboard - 3D Ward Risk Surface]
+    H --> J[Android Dispatch App - Mock Scenario + Routing]
+    H --> K[Local NL/Voice Agent - ElevenLabs]
 
-    J --> L[Android Intents<br/>Maps Routing]
+    J --> L[Android Intents - Maps Routing]
     K --> H
 ```
 
@@ -146,10 +146,10 @@ flowchart LR
 flowchart TD
     A[Raw LFB CSV] --> B[Clean timestamps, incident types, locations]
     B --> C[Map incident to station / ward]
-    C --> D[Create hourly grid<br/>ward x hour x incident type]
-    D --> E[Add temporal features<br/>hour, weekday, season, holidays]
+    C --> D[Create hourly grid - ward x hour x incident type]
+    D --> E[Add temporal features - hour, weekday, season, holidays]
     E --> F[Add weather features]
-    F --> G[Add lag features<br/>1h, 3h, 24h counts]
+    F --> G[Add lag features - 1h, 3h, 24h counts]
     G --> H[Train temporal risk model]
     G --> I[Create token sequences]
     I --> J[Train GPT-2 causal transformer]
@@ -193,40 +193,40 @@ The only thing the DGX Spark hands to the rest of the system is a single file: `
 
 ```mermaid
 flowchart LR
-    subgraph DGX["🟩 DGX Spark (GB10 GPU) — offline, all CUDA work here"]
+    subgraph DGX["DGX Spark GB10 - offline, all CUDA work here"]
         direction TB
-        RAW[Raw LFB CSV<br/>~1.7M rows] --> PREP[Preprocess + tokenise<br/>RAPIDS/cuDF · clean.py · tokenise.py]
+        RAW[Raw LFB CSV ~1.7M rows] --> PREP[Preprocess + tokenise - RAPIDS/cuDF]
         PREP --> TRAIN
-        subgraph TRAIN["Train (one-time, ~1.5–3 hr)"]
+        subgraph TRAIN["Train one-time ~1.5-3 hr"]
             direction LR
-            BASE[Baseline risk model<br/>LightGBM/cuML<br/>train_baseline.py]
-            GPT[GPT-2 causal transformer<br/>~19.5M params<br/>model.py · train_gpt2.py]
+            BASE[Baseline risk model - LightGBM/cuML]
+            GPT[GPT-2 causal transformer - 19.5M params]
         end
-        TRAIN --> INFER[Inference / rollout<br/>102 stations × 20 rollouts = 2,040<br/>≤150 tokens each · infer.py]
-        INFER --> JSON[(outputs/forecast_24h.json<br/>WardForecast with 24× hourly<br/>risk_score · expected_count · dominant_type)]
+        TRAIN --> INFER[Inference - 102 stations x 20 rollouts - infer.py]
+        INFER --> JSON[(outputs/forecast_24h.json - 24x hourly risk scores)]
     end
 
-    JSON -. "file written to disk<br/>(no HTTP, no GPU on the other side)" .-> LOADER
+    JSON -. "file written to disk" .-> LOADER
 
-    subgraph BE["🟦 FastAPI Backend :8000 — CPU only, no inference"]
+    subgraph BE["FastAPI Backend :8000 - CPU only"]
         direction TB
-        LOADER[loader.py<br/>mtime hot-reload + in-mem cache]
+        LOADER[loader.py - mtime hot-reload]
         LOADER --> FAPI[Routes]
-        SCEN[scenario_logic.py<br/>rule-based boosts only<br/>events · weather · pump coverage]
+        SCEN[scenario_logic.py - rule-based boosts]
         FAPI --- SCEN
     end
 
-    subgraph CLIENTS["🟧 Clients"]
+    subgraph CLIENTS["Clients"]
         direction TB
-        WEB[Three.js Web Dashboard :5173<br/>3D ward risk surface + timeline]
-        AND[Android Dispatch App<br/>mock dispatch + Maps intent]
+        WEB[Three.js Web Dashboard :5173]
+        AND[Android Dispatch App]
     end
 
     FAPI -- "GET /api/forecast" --> WEB
-    FAPI -- "POST /api/scenario → forecast_delta + recommendations" --> WEB
-    FAPI -- "GET /api/mobile/state · POST /api/mobile/accept" --> AND
-    FAPI -- "POST /api/ask → answer + actions" --> WEB
-    WEB -- "POST /api/scenario (live weather, what-if)" --> FAPI
+    FAPI -- "POST /api/scenario" --> WEB
+    FAPI -- "GET /api/mobile/state + POST /api/mobile/accept" --> AND
+    FAPI -- "POST /api/ask" --> WEB
+    WEB -- "POST /api/scenario" --> FAPI
 
     classDef gpu fill:#0b3d0b,stroke:#3fb950,color:#e6ffe6;
     classDef be fill:#0b2a4a,stroke:#58a6ff,color:#e6f0ff;
