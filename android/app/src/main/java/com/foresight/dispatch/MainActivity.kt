@@ -120,7 +120,7 @@ class WebBridge(private val activity: Activity, private val web: WebView) {
 
     // Backend hosts tried in order so one APK works on both the emulator (host loopback)
     // and a real phone on the same Wi-Fi (laptop LAN IP). First reachable one wins.
-    private val baseUrls = listOf("http://10.0.2.2:8000/", "http://192.168.1.113:8000/")
+    private val baseUrls = listOf("http://10.0.2.2:8008/", "http://10.18.216.107:8008/")
     private val apiHttp = okhttp3.OkHttpClient.Builder()
         .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
