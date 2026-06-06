@@ -101,9 +101,8 @@ body.no-motion .wbar { animation: none; }
 .asst-body { position: absolute; top: 0; left: 0; right: 0; bottom: 156px; overflow-y: auto; z-index: 1; padding: 0 18px; }
 .asst-body::-webkit-scrollbar { display: none; }
 .asst-idle { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
-.asst-convo { padding: 58px 0 12px; }
+.asst-convo { padding: 18px 0 12px; }
 .asst-status { text-align: center; color: var(--text-sec); font-size: 13px; margin-bottom: 12px; font-family: var(--font-disp); }
-.asst-status-live { position: sticky; top: 0; z-index: 2; padding: 8px 0 10px; margin: 0 0 8px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: var(--ember); background: linear-gradient(180deg, var(--bg-base) 60%, transparent); }
 .asst-dock { position: absolute; left: 0; right: 0; bottom: 104px; z-index: 48; display: flex; justify-content: center; padding: 0 22px; }
 .asst-controls { display: flex; align-items: center; gap: 30px; }
 .asst-spacer { width: 48px; height: 48px; display: inline-block; }
@@ -143,6 +142,16 @@ body { font-family: var(--font-body); }
 /* ---------- bigger globe map ---------- */
 .globe-map { height: 68vh !important; }
 .globe-sheet { top: 64vh !important; }
+
+/* ---------- station picker ---------- */
+.station-pick { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; color: var(--text-pri); }
+.station-chev { color: var(--text-mut); flex: 0 0 auto; }
+.station-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(6,7,9,.55); backdrop-filter: blur(3px); display: flex; align-items: flex-end; }
+.station-sheet { width: 100%; border-radius: 26px 26px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); animation: sheetUp .22s ease; }
+@keyframes sheetUp { from { transform: translateY(20px); opacity: .4; } to { transform: translateY(0); opacity: 1; } }
+.station-opt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 15px 16px; margin-top: 8px; border-radius: 16px; border: 1px solid var(--glass-stroke); background: rgba(255,255,255,.04); color: var(--text-pri); font-family: var(--font-body); font-size: 16px; cursor: pointer; }
+.station-opt.on { border-color: var(--ember); background: rgba(255,106,26,.10); color: var(--text-pri); }
+.station-tick { color: var(--ember); font-weight: 700; }
 
 /* a touch more letter-spacing on body text */
 body { letter-spacing: 0.02em; }

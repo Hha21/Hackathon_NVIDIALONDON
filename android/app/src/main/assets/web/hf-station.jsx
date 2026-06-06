@@ -118,12 +118,16 @@
     );
   }
 
+  const STATIONS = ["Lewisham", "New Cross", "Deptford", "Greenwich", "Peckham", "Forest Hill", "Old Kent Road"];
+
   function Station({ goGlobe }) {
+    const [station, setStation] = useState("Lewisham");
+    const [picking, setPicking] = useState(false);
     const [info, setInfo] = useState(DEMO);
 
     useEffect(() => {
       let alive = true;
-      window.loadState("Lewisham").then(({ ok, data }) => {
+      window.loadState(station).then(({ ok, data }) => {
         if (!alive) return;
         const recs = data && data.recommendations;
         if (ok && recs && recs.length) {
@@ -131,7 +135,7 @@
           const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
           setInfo({
             live: true,
-            station: data.station || "Lewisham",
+            station: data.station || station,
             pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
             crew: 5, // not in the mobile contract; kept static
             rec: {
@@ -143,11 +147,12 @@
             },
           });
         } else {
+          setInfo({ ...DEMO, station }); // keep the chosen station label even offline
           window.toast("Live data unavailable — showing demo data");
         }
       });
       return () => { alive = false; };
-    }, []);
+    }, [station]);
 
     return (
       <div className="view">
@@ -158,12 +163,15 @@
             <div className="glass rise" style={{ padding: 16 }}>
               <div className="label" style={{ marginBottom: 8 }}>Station</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div className="display" style={{ fontSize: 32 }}>{info.station}</div>
+                <button className="station-pick" onClick={() => setPicking(true)}>
+                  <span className="display" style={{ fontSize: 32 }}>{info.station}</span>
+                  <svg className="station-chev" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                   <span className="sdot sig" /><span className="label" style={{ fontSize: 10 }}>On duty</span>
                 </span>
               </div>
-              <div style={{ color: "var(--text-sec)", fontSize: 13 }}>Lewisham, SE London</div>
+              <div style={{ color: "var(--text-sec)", fontSize: 13 }}>SE London</div>
               <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
                 <Chip k="Pumps free" v={String(info.pumps)} />
                 <Chip k="Risk" v={riskWord(info.rec.score)} ember />
@@ -172,7 +180,7 @@
             </div>
 
             <div style={{ height: 72 }} />
-            <RecommendationCard info={info} key={info.live ? "live" : "demo"} />
+            <RecommendationCard info={info} key={info.station + (info.live ? "-live" : "-demo")} />
 
             <SecHead link="See globe" onLink={goGlobe}>Active nearby · live</SecHead>
             <div style={{ marginBottom: 4 }}>
@@ -181,6 +189,21 @@
           </div>
           <div className="navspace" />
         </div>
+
+        {picking ? (
+          <div className="station-scrim" onClick={() => setPicking(false)}>
+            <div className="station-sheet glass" onClick={(e) => e.stopPropagation()}>
+              <div className="label" style={{ marginBottom: 10 }}>Select station</div>
+              {STATIONS.map((s) => (
+                <button key={s} className={"station-opt" + (s === info.station ? " on" : "")}
+                  onClick={() => { setStation(s); setPicking(false); }}>
+                  <span>{s}</span>
+                  {s === info.station ? <span className="station-tick">✓</span> : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }

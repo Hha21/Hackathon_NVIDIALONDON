@@ -196,13 +196,16 @@
       className: "news-chev"
     }, "\u203A"))));
   }
+  const STATIONS = ["Lewisham", "New Cross", "Deptford", "Greenwich", "Peckham", "Forest Hill", "Old Kent Road"];
   function Station({
     goGlobe
   }) {
+    const [station, setStation] = useState("Lewisham");
+    const [picking, setPicking] = useState(false);
     const [info, setInfo] = useState(DEMO);
     useEffect(() => {
       let alive = true;
-      window.loadState("Lewisham").then(({
+      window.loadState(station).then(({
         ok,
         data
       }) => {
@@ -213,7 +216,7 @@
           const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
           setInfo({
             live: true,
-            station: data.station || "Lewisham",
+            station: data.station || station,
             pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
             crew: 5,
             // not in the mobile contract; kept static
@@ -227,13 +230,17 @@
             }
           });
         } else {
+          setInfo({
+            ...DEMO,
+            station
+          }); // keep the chosen station label even offline
           window.toast("Live data unavailable — showing demo data");
         }
       });
       return () => {
         alive = false;
       };
-    }, []);
+    }, [station]);
     return /*#__PURE__*/React.createElement("div", {
       className: "view"
     }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement("div", {
@@ -260,12 +267,27 @@
         alignItems: "center",
         justifyContent: "space-between"
       }
-    }, /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "station-pick",
+      onClick: () => setPicking(true)
+    }, /*#__PURE__*/React.createElement("span", {
       className: "display",
       style: {
         fontSize: 32
       }
-    }, info.station), /*#__PURE__*/React.createElement("span", {
+    }, info.station), /*#__PURE__*/React.createElement("svg", {
+      className: "station-chev",
+      viewBox: "0 0 24 24",
+      width: "20",
+      height: "20",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }, /*#__PURE__*/React.createElement("path", {
+      d: "M6 9l6 6 6-6"
+    }))), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -283,7 +305,7 @@
         color: "var(--text-sec)",
         fontSize: 13
       }
-    }, "Lewisham, SE London"), /*#__PURE__*/React.createElement("div", {
+    }, "SE London"), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 10,
@@ -305,7 +327,7 @@
       }
     }), /*#__PURE__*/React.createElement(RecommendationCard, {
       info: info,
-      key: info.live ? "live" : "demo"
+      key: info.station + (info.live ? "-live" : "-demo")
     }), /*#__PURE__*/React.createElement(SecHead, {
       link: "See globe",
       onLink: goGlobe
@@ -315,7 +337,27 @@
       }
     }, /*#__PURE__*/React.createElement(ActiveNearby, null))), /*#__PURE__*/React.createElement("div", {
       className: "navspace"
-    })));
+    })), picking ? /*#__PURE__*/React.createElement("div", {
+      className: "station-scrim",
+      onClick: () => setPicking(false)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "station-sheet glass",
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "label",
+      style: {
+        marginBottom: 10
+      }
+    }, "Select station"), STATIONS.map(s => /*#__PURE__*/React.createElement("button", {
+      key: s,
+      className: "station-opt" + (s === info.station ? " on" : ""),
+      onClick: () => {
+        setStation(s);
+        setPicking(false);
+      }
+    }, /*#__PURE__*/React.createElement("span", null, s), s === info.station ? /*#__PURE__*/React.createElement("span", {
+      className: "station-tick"
+    }, "\u2713") : null)))) : null);
   }
   window.Station = Station;
 })();
