@@ -23,6 +23,28 @@ export type VoiceAgentProps = {
   // Group E (map control): move the scrubber + set the incident filter by voice.
   onScrubTime: (hour: number) => void;
   onFilterIncident: (type: string) => void;
+  // generate_day: kick a Spark GPT-2 rollout (all fields optional → panel defaults).
+  onGenerateDay: (params: GenParams) => void;
+};
+
+// Overrides the voice agent can pass to a forecast generation. Anything omitted
+// falls back to the ScenarioPanel's current value (live weather + today).
+export type GenParams = {
+  date?: string; // YYYY-MM-DD
+  hour?: number; // 0-23 start hour
+  temp?: number; // °C
+  wind?: number; // km/h
+  rain?: number; // mm/h
+  nRollouts?: number; // per station (10 fast / 15 balanced / 20 full)
+};
+
+// Map a spoken resolution word to rollouts/station; undefined keeps the default.
+const matchResolution = (raw?: string): number | undefined => {
+  const q = (raw ?? "").toLowerCase();
+  if (/full|max|high|thorough|20/.test(q)) return 20;
+  if (/balanced|medium|15/.test(q)) return 15;
+  if (/fast|quick|low|10/.test(q)) return 10;
+  return undefined;
 };
 
 // Incident filter values the dropdown accepts (mirror of App's INCIDENT_FILTER).
@@ -73,6 +95,7 @@ export default function VoiceAgent({
   onHighlightWards,
   onScrubTime,
   onFilterIncident,
+  onGenerateDay,
 }: VoiceAgentProps) {
   const [log, setLog] = useState<LogEntry[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -242,6 +265,32 @@ export default function VoiceAgent({
     push({ kind: "action", text: `split → ${a.ward_name} + ${b.ward_name}` });
     return `Ringing ${a.ward_name} and ${b.ward_name}.`;
   });
+
+  // --- generate_day: dispatch a new Spark forecast rollout (fire-and-forget) ---
+  useConversationClientTool(
+    "generate_day",
+    (p: {
+      date?: string;
+      hour?: number;
+      temp?: number;
+      wind?: number;
+      rain?: number;
+      resolution?: string;
+    }) => {
+      const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+      const params: GenParams = {
+        date: typeof p?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? p.date : undefined,
+        hour: num(p?.hour) != null ? Math.max(0, Math.min(23, Math.round(p!.hour!))) : undefined,
+        temp: num(p?.temp),
+        wind: num(p?.wind),
+        rain: num(p?.rain),
+        nRollouts: matchResolution(p?.resolution),
+      };
+      onGenerateDay(params);
+      push({ kind: "action", text: "generate day → Spark rollout" });
+      return "Generating a fresh forecast on the Spark — about a minute. I'll refresh the map when it lands.";
+    }
+  );
 
   const conversation = useConversation({
     onConnect: () => push({ kind: "agent", text: "— connected —" }),

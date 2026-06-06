@@ -49,6 +49,11 @@
             "type": "client",
             "config": "tool_configs/compare_split.json",
             "id": "tool_6801ktf1atrpfp1bthmzs5g4z3ee"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/generate_day.json",
+            "id": "tool_3901ktf31rdafb7a4jfax73zafhb"
         }
     ]
 }

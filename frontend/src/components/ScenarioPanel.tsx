@@ -16,9 +16,13 @@ import {
   windBucket,
 } from "../api";
 import type { GenerateJob } from "../api";
+import type { GenParams } from "./VoiceAgent";
 
 type Props = {
   onForecastUpdated: () => void;
+  // Bumped by the voice agent's generate_day tool; runs a rollout with the
+  // given overrides (any omitted field uses the panel's current value).
+  genSignal?: { nonce: number; params: GenParams } | null;
 };
 
 // Rollouts per station → total = ×102 stations. ETA from the Spark's KV-cache
@@ -60,7 +64,7 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ScenarioPanel({ onForecastUpdated }: Props) {
+export default function ScenarioPanel({ onForecastUpdated, genSignal }: Props) {
   const [date, setDate] = useState(today());
   const [hour, setHour] = useState(18);
   const [temp, setTemp] = useState(12); // °C
@@ -118,22 +122,40 @@ export default function ScenarioPanel({ onForecastUpdated }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.job_id, job?.status]);
 
-  const generate = async () => {
+  // Overrides let the voice agent run with different params; each provided
+  // field also updates the matching slider so the UI reflects what ran.
+  const generate = async (o?: GenParams) => {
+    if (running) return;
     setError(null);
+    if (o) {
+      if (o.date) setDate(o.date);
+      if (o.hour != null) setHour(o.hour);
+      if (o.temp != null) setTemp(o.temp);
+      if (o.wind != null) setWind(o.wind);
+      if (o.rain != null) setRain(o.rain);
+      if (o.nRollouts != null) setNRollouts(o.nRollouts);
+    }
     try {
       const j = await generateForecast({
-        date,
-        hour,
-        temp,
-        rain,
-        wind,
-        n_rollouts: nRollouts,
+        date: o?.date ?? date,
+        hour: o?.hour ?? hour,
+        temp: o?.temp ?? temp,
+        rain: o?.rain ?? rain,
+        wind: o?.wind ?? wind,
+        n_rollouts: o?.nRollouts ?? nRollouts,
       });
       setJob(j);
     } catch (e) {
       setError(String(e));
     }
   };
+
+  // Voice-triggered generation: run once per nonce bump.
+  useEffect(() => {
+    if (!genSignal) return;
+    generate(genSignal.params);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genSignal?.nonce]);
 
   const slider = (
     label: string,
@@ -279,7 +301,7 @@ export default function ScenarioPanel({ onForecastUpdated }: Props) {
         </div>
       </div>
 
-      <button className="btn accent full" onClick={generate} disabled={running}>
+      <button className="btn accent full" onClick={() => generate()} disabled={running}>
         {running ? (
           <>
             <span className="spinner" aria-hidden="true" />

@@ -11,6 +11,7 @@ import RiskMap3D from "./components/RiskMap3D";
 import TimelineScrubber from "./components/TimelineScrubber";
 import ScenarioPanel from "./components/ScenarioPanel";
 import VoiceAgent from "./components/VoiceAgent";
+import type { GenParams } from "./components/VoiceAgent";
 import fallbackForecast from "./fallback_forecast.json";
 
 // Matches the dominant_type values emitted by Person A's model forecast.
@@ -63,6 +64,15 @@ export default function App() {
 
   // The scenario panel calls this once a Spark regen lands the new forecast JSON.
   const onForecastUpdated = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Voice "generate_day": fire a Spark rollout via the ScenarioPanel. Bump a
+  // nonce so the panel re-runs even if the params repeat; params are optional
+  // (fall back to the panel's current date/weather/resolution).
+  const [genSignal, setGenSignal] = useState<{ nonce: number; params: GenParams } | null>(null);
+  const onGenerateDay = useCallback(
+    (params: GenParams) => setGenSignal((s) => ({ nonce: (s?.nonce ?? 0) + 1, params })),
+    []
+  );
 
   // ---- Voice control (ElevenLabs client tools -> map camera + borders) ----
   const [focusWardId, setFocusWardId] = useState<string | null>(null);
@@ -211,7 +221,7 @@ export default function App() {
           padding: 14,
         }}
       >
-        <ScenarioPanel onForecastUpdated={onForecastUpdated} />
+        <ScenarioPanel onForecastUpdated={onForecastUpdated} genSignal={genSignal} />
         <VoiceAgent
           wards={forecast?.wards ?? []}
           hour={hour}
@@ -221,6 +231,7 @@ export default function App() {
           onHighlightWards={onHighlightWards}
           onScrubTime={onScrubTime}
           onFilterIncident={onFilterIncident}
+          onGenerateDay={onGenerateDay}
         />
       </aside>
 
