@@ -6,15 +6,19 @@
   const { useState, useRef, useEffect } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
 
-  function ResultCard({ goGlobe }) {
-    const route = () => window.routeTo("Brockley standby", 51.464, -0.036);
+  const detectWard = (text) => (window.FD_WARDS || []).find((w) => text.toLowerCase().includes(w.name.toLowerCase()));
+
+  function ResultCard({ loc, onClose, goGlobe }) {
+    const route = () => window.routeByName(loc.name);
+    const lbl = loc.base > 0.7 ? "High" : loc.base > 0.4 ? "Med" : "Low";
     return (
       <div className="result-card glass">
-        <div className="result-map"><Map3D preset="route" /></div>
+        <button className="result-x" onClick={onClose} aria-label="Dismiss">✕</button>
+        <div className="result-map"><Map3D preset="route" dest={[loc.lon, loc.lat]} key={loc.name} /></div>
         <div style={{ padding: "12px 16px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div><div className="title" style={{ fontSize: 19 }}>Brockley</div><div style={{ color: "var(--text-sec)", fontSize: 12.5 }}>Dwelling fire · 19:00</div></div>
-            <Pill value={0.78} label="High" />
+            <div><div className="title" style={{ fontSize: 19 }}>{loc.name}</div><div style={{ color: "var(--text-sec)", fontSize: 12.5 }}>{loc.type}</div></div>
+            <Pill value={loc.base} label={lbl} />
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
             <button className="btn ghost full" onClick={goGlobe}>Open in Globe</button>
@@ -29,6 +33,7 @@
     const [mode, setMode] = useState("idle"); // idle | connecting | listening | thinking | speaking
     const [turns, setTurns] = useState([]);
     const [showResult, setShowResult] = useState(false);
+    const [loc, setLoc] = useState(null);
     const [typing, setTyping] = useState(false);
     const [text, setText] = useState("");
     const convRef = useRef(null);
@@ -56,11 +61,19 @@
           onError: (e) => { console.log("EL error", e); },
           onModeChange: (m) => { const mm = (m && m.mode) || m; setMode(mm === "speaking" ? "speaking" : "listening"); },
           onMessage: (msg) => {
-            const t = (msg && (msg.message || msg.text)) || "";
+            let t = (msg && (msg.message || msg.text)) || "";
             const src = (msg && msg.source) || "ai";
+            t = t.replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();   // strip [calmly] voice tags
             if (!t) return;
-            addTurn(src === "user" ? "you" : "ai", t);
-            if (/brockley/i.test(t)) setShowResult(true);
+            const who = src === "user" ? "you" : "ai";
+            console.log("EL msg " + who + ": " + t.slice(0, 60));
+            setTurns((p) => {
+              const last = p[p.length - 1];
+              if (last && last.who === who && last.text === t) return p;     // dedupe repeats
+              return [...p, { who, text: t }];
+            });
+            // When the agent names a location, show its card (every reply with a location).
+            if (who === "ai") { const w = detectWard(t); if (w) { setLoc(w); setShowResult(true); } }
           },
         });
         convRef.current = conv;
@@ -81,20 +94,23 @@
         <div className="asst-bg-tint" />
 
         <div className="asst-body">
-          <div className="orb-wrap" style={{ marginTop: 40 }}><Orb state={orbState} size={150} /></div>
-          <div className="asst-status">{caption}</div>
-
-          {showResult ? <ResultCard goGlobe={goGlobe} /> : null}
-
           {turns.length === 0 ? (
-            <div className="prompts">
-              <button className="prompt-chip" onClick={() => start("What's hot right now?")}>What's hot right now?</button>
-              <button className="prompt-chip" onClick={() => start("Why Brockley?")}>Why Brockley?</button>
-              <button className="prompt-chip" onClick={() => start("Risk in Lewisham tonight?")}>Risk in Lewisham tonight?</button>
+            <div className="asst-idle">
+              <div className="orb-wrap"><Orb state={orbState} size={150} /></div>
+              <div className="asst-status">{caption}</div>
+              <div className="prompts">
+                <button className="prompt-chip" onClick={() => start("What's hot right now?")}>What's hot right now?</button>
+                <button className="prompt-chip" onClick={() => start("Why Brockley?")}>Why Brockley?</button>
+                <button className="prompt-chip" onClick={() => start("Risk in Lewisham tonight?")}>Risk in Lewisham tonight?</button>
+              </div>
             </div>
           ) : (
-            <div className="transcript">
-              {turns.map((t, i) => <div key={i} className={"bubble " + t.who}>{t.text}</div>)}
+            <div className="asst-convo">
+              <div className="asst-status asst-status-live">{caption}</div>
+              {showResult && loc ? <ResultCard loc={loc} onClose={() => setShowResult(false)} goGlobe={goGlobe} /> : null}
+              <div className="transcript">
+                {turns.map((t, i) => <div key={i} className={"bubble " + t.who}>{t.text}</div>)}
+              </div>
             </div>
           )}
         </div>
@@ -104,7 +120,9 @@
             <div className="asst-input">
               <input autoFocus value={text} placeholder="Type a question…"
                 onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendText(); }} />
-              <button className="asst-send" onClick={sendText} aria-label="Send">→</button>
+              <button className="asst-send" onClick={sendText} aria-label="Send">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+              </button>
               <button className="asst-kb2" onClick={() => { setTyping(false); setText(""); }} aria-label="Close">✕</button>
             </div>
           ) : (

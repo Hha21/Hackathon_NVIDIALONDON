@@ -9,16 +9,26 @@
     useEffect
   } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
+  const detectWard = text => (window.FD_WARDS || []).find(w => text.toLowerCase().includes(w.name.toLowerCase()));
   function ResultCard({
+    loc,
+    onClose,
     goGlobe
   }) {
-    const route = () => window.routeTo("Brockley standby", 51.464, -0.036);
+    const route = () => window.routeByName(loc.name);
+    const lbl = loc.base > 0.7 ? "High" : loc.base > 0.4 ? "Med" : "Low";
     return /*#__PURE__*/React.createElement("div", {
       className: "result-card glass"
-    }, /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "result-x",
+      onClick: onClose,
+      "aria-label": "Dismiss"
+    }, "\u2715"), /*#__PURE__*/React.createElement("div", {
       className: "result-map"
     }, /*#__PURE__*/React.createElement(Map3D, {
-      preset: "route"
+      preset: "route",
+      dest: [loc.lon, loc.lat],
+      key: loc.name
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         padding: "12px 16px 16px"
@@ -34,14 +44,14 @@
       style: {
         fontSize: 19
       }
-    }, "Brockley"), /*#__PURE__*/React.createElement("div", {
+    }, loc.name), /*#__PURE__*/React.createElement("div", {
       style: {
         color: "var(--text-sec)",
         fontSize: 12.5
       }
-    }, "Dwelling fire \xB7 19:00")), /*#__PURE__*/React.createElement(Pill, {
-      value: 0.78,
-      label: "High"
+    }, loc.type)), /*#__PURE__*/React.createElement(Pill, {
+      value: loc.base,
+      label: lbl
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -62,6 +72,7 @@
     const [mode, setMode] = useState("idle"); // idle | connecting | listening | thinking | speaking
     const [turns, setTurns] = useState([]);
     const [showResult, setShowResult] = useState(false);
+    const [loc, setLoc] = useState(null);
     const [typing, setTyping] = useState(false);
     const [text, setText] = useState("");
     const convRef = useRef(null);
@@ -123,11 +134,28 @@
             setMode(mm === "speaking" ? "speaking" : "listening");
           },
           onMessage: msg => {
-            const t = msg && (msg.message || msg.text) || "";
+            let t = msg && (msg.message || msg.text) || "";
             const src = msg && msg.source || "ai";
+            t = t.replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim(); // strip [calmly] voice tags
             if (!t) return;
-            addTurn(src === "user" ? "you" : "ai", t);
-            if (/brockley/i.test(t)) setShowResult(true);
+            const who = src === "user" ? "you" : "ai";
+            console.log("EL msg " + who + ": " + t.slice(0, 60));
+            setTurns(p => {
+              const last = p[p.length - 1];
+              if (last && last.who === who && last.text === t) return p; // dedupe repeats
+              return [...p, {
+                who,
+                text: t
+              }];
+            });
+            // When the agent names a location, show its card (every reply with a location).
+            if (who === "ai") {
+              const w = detectWard(t);
+              if (w) {
+                setLoc(w);
+                setShowResult(true);
+              }
+            }
           }
         });
         convRef.current = conv;
@@ -166,19 +194,16 @@
       className: "asst-bg-tint"
     }), /*#__PURE__*/React.createElement("div", {
       className: "asst-body"
+    }, turns.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "asst-idle"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "orb-wrap",
-      style: {
-        marginTop: 40
-      }
+      className: "orb-wrap"
     }, /*#__PURE__*/React.createElement(Orb, {
       state: orbState,
       size: 150
     })), /*#__PURE__*/React.createElement("div", {
       className: "asst-status"
-    }, caption), showResult ? /*#__PURE__*/React.createElement(ResultCard, {
-      goGlobe: goGlobe
-    }) : null, turns.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    }, caption), /*#__PURE__*/React.createElement("div", {
       className: "prompts"
     }, /*#__PURE__*/React.createElement("button", {
       className: "prompt-chip",
@@ -189,12 +214,20 @@
     }, "Why Brockley?"), /*#__PURE__*/React.createElement("button", {
       className: "prompt-chip",
       onClick: () => start("Risk in Lewisham tonight?")
-    }, "Risk in Lewisham tonight?")) : /*#__PURE__*/React.createElement("div", {
+    }, "Risk in Lewisham tonight?"))) : /*#__PURE__*/React.createElement("div", {
+      className: "asst-convo"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "asst-status asst-status-live"
+    }, caption), showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
+      loc: loc,
+      onClose: () => setShowResult(false),
+      goGlobe: goGlobe
+    }) : null, /*#__PURE__*/React.createElement("div", {
       className: "transcript"
     }, turns.map((t, i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "bubble " + t.who
-    }, t.text)))), /*#__PURE__*/React.createElement("div", {
+    }, t.text))))), /*#__PURE__*/React.createElement("div", {
       className: "asst-dock"
     }, typing ? /*#__PURE__*/React.createElement("div", {
       className: "asst-input"
@@ -210,7 +243,18 @@
       className: "asst-send",
       onClick: sendText,
       "aria-label": "Send"
-    }, "\u2192"), /*#__PURE__*/React.createElement("button", {
+    }, /*#__PURE__*/React.createElement("svg", {
+      viewBox: "0 0 24 24",
+      width: "22",
+      height: "22",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2.2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }, /*#__PURE__*/React.createElement("path", {
+      d: "M5 12h13M13 6l6 6-6 6"
+    }))), /*#__PURE__*/React.createElement("button", {
       className: "asst-kb2",
       onClick: () => {
         setTyping(false);

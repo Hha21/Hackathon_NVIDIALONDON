@@ -22,6 +22,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Hosts the bundled "Fire Control" design (assets/web/) in a full-screen, chrome-less
@@ -116,6 +118,26 @@ class WebBridge(private val activity: Activity, private val web: WebView) {
         .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
+    // Backend hosts tried in order so one APK works on both the emulator (host loopback)
+    // and a real phone on the same Wi-Fi (laptop LAN IP). First reachable one wins.
+    private val baseUrls = listOf("http://10.0.2.2:8000/", "http://192.168.1.113:8000/")
+    private val apiHttp = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(6, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    /** Try each base URL until one returns a successful body; null if all fail. */
+    private fun tryRequest(buildReq: (String) -> okhttp3.Request): String? {
+        for (base in baseUrls) {
+            try {
+                apiHttp.newCall(buildReq(base)).execute().use {
+                    if (it.isSuccessful) return it.body?.string()
+                }
+            } catch (e: Exception) { android.util.Log.w("FDApi", "<$base> ${e.message}") }
+        }
+        return null
+    }
+
     @JavascriptInterface
     fun openMaps(lat: Double, lon: Double, label: String) {
         activity.runOnUiThread { MapsLauncher.route(activity, lat, lon, label) }
@@ -124,6 +146,55 @@ class WebBridge(private val activity: Activity, private val web: WebView) {
     @JavascriptInterface
     fun openMapsQuery(query: String) {
         activity.runOnUiThread { MapsLauncher.routeQuery(activity, query) }
+    }
+
+    /** Show a native toast (used to flag when the app is on demo/fallback data). */
+    @JavascriptInterface
+    fun toast(msg: String) {
+        activity.runOnUiThread {
+            android.widget.Toast.makeText(activity, msg, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** GET /api/mobile/state?station=… → hand the raw JSON back via window.__onState({ok,raw}). */
+    @JavascriptInterface
+    fun fetchState(station: String) {
+        Thread {
+            val raw = tryRequest { base ->
+                okhttp3.Request.Builder()
+                    .url(base + "api/mobile/state?station=" + java.net.URLEncoder.encode(station, "UTF-8"))
+                    .build()
+            }
+            val payload = org.json.JSONObject()
+                .put("ok", raw != null)
+                .put("raw", raw ?: "{}")
+                .toString()
+            activity.runOnUiThread { web.evaluateJavascript("window.__onState && window.__onState($payload)", null) }
+        }.start()
+    }
+
+    /** POST /api/mobile/accept → hand the raw JSON back via window.__onAccept({ok,raw}). */
+    @JavascriptInterface
+    fun acceptRec(recommendationId: String, station: String, unit: String) {
+        Thread {
+            val bodyJson = org.json.JSONObject()
+                .put("recommendation_id", recommendationId)
+                .put("station", station)
+                .put("unit", unit)
+                .put("accepted", true)
+                .toString()
+            val raw = tryRequest { base ->
+                okhttp3.Request.Builder()
+                    .url(base + "api/mobile/accept")
+                    .post(bodyJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                    .build()
+            }
+            val payload = org.json.JSONObject()
+                .put("ok", raw != null)
+                .put("raw", raw ?: "{}")
+                .toString()
+            activity.runOnUiThread { web.evaluateJavascript("window.__onAccept && window.__onAccept($payload)", null) }
+        }.start()
     }
 
     /** Open a news article URL in the browser. */

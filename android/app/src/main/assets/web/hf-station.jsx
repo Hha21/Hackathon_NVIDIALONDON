@@ -1,22 +1,55 @@
-// hf-station.jsx — Home / "My Station" (variation A: hero-led). Active Nearby = live London fire news.
+// hf-station.jsx — Home / "My Station" (variation A: hero-led).
+//   Station header + recommendation come from GET /api/mobile/state (native bridge).
+//   Accept posts to /api/mobile/accept then opens Google Maps to the routing target.
+//   If the backend is unreachable, it falls back to demo data and toasts the user.
+//   Active Nearby = live London fire news (Google News RSS via the bridge).
 
 (function () {
   const { useState, useEffect } = React;
 
-  function RecommendationCard() {
+  // Demo fallback — keeps the app fully demoable with the server down.
+  const DEMO = {
+    live: false,
+    station: "Lewisham",
+    pumps: 1,
+    crew: 5,
+    rec: { id: "rec_001", destination: "Brockley", lat: 51.464, lon: -0.036, score: 0.78, reason: null },
+  };
+
+  const riskLabel = (v) => (v > 0.7 ? "High" : v > 0.4 ? "Med" : "Low");
+  const riskWord = (v) => (v > 0.7 ? "HIGH" : v > 0.4 ? "MED" : "LOW");
+
+  function RecommendationCard({ info }) {
     const [state, setState] = useState("idle"); // idle | routing | enroute | declined
-    const accept = () => {
+    const rec = info.rec;
+
+    const accept = async () => {
       setState("routing");
-      setTimeout(() => {
+      let lat = rec.lat, lon = rec.lon;
+      const label = rec.destination + " standby";
+      if (info.live) {
+        try {
+          const res = await window.acceptRecommendation(rec.id, info.station, "P1");
+          if (res.ok && res.data && res.data.routing_uri) {
+            const mm = /geo:(-?[0-9.]+),(-?[0-9.]+)/.exec(res.data.routing_uri);
+            if (mm) { lat = parseFloat(mm[1]); lon = parseFloat(mm[2]); }
+          } else {
+            window.toast("Accept not confirmed by server — routing anyway");
+          }
+        } catch (e) { window.toast("Accept not confirmed by server — routing anyway"); }
         setState("enroute");
-        window.routeTo("Brockley standby", 51.464, -0.036);
-      }, 1300);
+        window.routeTo(label, lat, lon);
+      } else {
+        // offline demo: brief simulated routing beat, then open Maps
+        setTimeout(() => { setState("enroute"); window.routeTo(label, lat, lon); }, 1300);
+      }
     };
+
     if (state === "declined") {
       return (
         <div className="rec-card glass rise" style={{ alignItems: "center", textAlign: "center", padding: "26px 18px" }}>
           <div className="title" style={{ fontSize: 17 }}>Recommendation dismissed</div>
-          <div style={{ color: "var(--text-sec)", fontSize: 13.5, margin: "6px 0 16px" }}>Holding position at Lewisham.</div>
+          <div style={{ color: "var(--text-sec)", fontSize: 13.5, margin: "6px 0 16px" }}>Holding position at {info.station}.</div>
           <button className="btn ghost sm" onClick={() => setState("idle")}>Undo</button>
         </div>
       );
@@ -24,10 +57,10 @@
     return (
       <div className={"rec-card glass rise" + (state === "idle" ? " glow" : "")}>
         <div className="recmap">
-          <Map3D preset="route" />
+          <Map3D preset="route" dest={[rec.lon, rec.lat]} key={rec.destination} />
           {state === "routing" || state === "enroute" ? (
             <div className={"rec-overlay" + (state === "enroute" ? " done" : "")}>
-              {state === "routing" ? <><span className="spinner" /><span>Routing to Brockley…</span></> :
+              {state === "routing" ? <><span className="spinner" /><span>Routing to {rec.destination}…</span></> :
                 <><span className="check">✓</span><span>En route · opening Maps</span></>}
             </div>
           ) : null}
@@ -36,12 +69,14 @@
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
             <div>
               <div className="label" style={{ color: "var(--text-sec)", marginBottom: 3 }}>Pre-position</div>
-              <div className="display" style={{ fontSize: 27 }}>→ Brockley</div>
+              <div className="display" style={{ fontSize: 27 }}>→ {rec.destination}</div>
             </div>
-            <Pill value={0.78} label="High" />
+            <Pill value={rec.score} label={riskLabel(rec.score)} />
           </div>
           <div style={{ color: "var(--text-sec)", fontSize: 13.5, lineHeight: 1.4, margin: "10px 0 4px" }}>
-            Predicted dwelling-fire risk spike ~<span className="mono" style={{ color: "var(--text-pri)" }}>19:00</span>. Pre-positioning cuts response by an est. 4 min.
+            {info.live && rec.reason ? rec.reason : (
+              <>Predicted dwelling-fire risk spike ~<span className="mono" style={{ color: "var(--text-pri)" }}>19:00</span>. Pre-positioning cuts response by an est. 4 min.</>
+            )}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
             <button className="btn ghost" style={{ flex: "0 0 auto", paddingInline: 18 }} onClick={() => setState("declined")} disabled={state !== "idle"}>Decline</button>
@@ -52,12 +87,6 @@
     );
   }
 
-  const flame = (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
-      <path d="M12 3c1 3-2 4-2 7a4 4 0 108 0c0-2-1-3-1.5-4 .2 2-1 3-1.5 2.5C13 7 14 5 12 3Z" fill="#FF6A1A" />
-      <path d="M9.5 13a2.5 2.5 0 105 0c0-1-.8-1.6-1-2.2-.3.9-.8 1-1.3.8-.5-.3-.2-1.2.1-1.6-1 .5-2.3 1.7-2.8 3Z" fill="#FFC24B" />
-    </svg>
-  );
   function ago(sd) {
     if (!sd || sd.length < 13) return "";
     const t = Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8), +sd.slice(9, 11), +sd.slice(11, 13));
@@ -90,6 +119,36 @@
   }
 
   function Station({ goGlobe }) {
+    const [info, setInfo] = useState(DEMO);
+
+    useEffect(() => {
+      let alive = true;
+      window.loadState("Lewisham").then(({ ok, data }) => {
+        if (!alive) return;
+        const recs = data && data.recommendations;
+        if (ok && recs && recs.length) {
+          const r = recs[0];
+          const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
+          setInfo({
+            live: true,
+            station: data.station || "Lewisham",
+            pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
+            crew: 5, // not in the mobile contract; kept static
+            rec: {
+              id: r.recommendation_id,
+              destination: r.destination,
+              lat: r.lat, lon: r.lon,
+              reason: r.reason,
+              score: m ? parseFloat(m[1]) : 0.78,
+            },
+          });
+        } else {
+          window.toast("Live data unavailable — showing demo data");
+        }
+      });
+      return () => { alive = false; };
+    }, []);
+
     return (
       <div className="view">
         <Hero />
@@ -99,21 +158,21 @@
             <div className="glass rise" style={{ padding: 16 }}>
               <div className="label" style={{ marginBottom: 8 }}>Station</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div className="display" style={{ fontSize: 32 }}>Lewisham</div>
+                <div className="display" style={{ fontSize: 32 }}>{info.station}</div>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                   <span className="sdot sig" /><span className="label" style={{ fontSize: 10 }}>On duty</span>
                 </span>
               </div>
               <div style={{ color: "var(--text-sec)", fontSize: 13 }}>Lewisham, SE London</div>
               <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <Chip k="Pumps free" v="1" />
-                <Chip k="Risk" v="HIGH" ember />
-                <Chip k="Crew" v="5" />
+                <Chip k="Pumps free" v={String(info.pumps)} />
+                <Chip k="Risk" v={riskWord(info.rec.score)} ember />
+                <Chip k="Crew" v={String(info.crew)} />
               </div>
             </div>
 
             <div style={{ height: 72 }} />
-            <RecommendationCard />
+            <RecommendationCard info={info} key={info.live ? "live" : "demo"} />
 
             <SecHead link="See globe" onLink={goGlobe}>Active nearby · live</SecHead>
             <div style={{ marginBottom: 4 }}>

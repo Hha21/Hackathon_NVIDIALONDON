@@ -310,28 +310,19 @@ body {
 
 /* route map inside the recommendation card — a top band; bottom aligns with the band so
    it never covers the text below. Top extends above the card with a fade so buildings "pop". */
-.recmap { height: 220px !important; margin: 0 !important; overflow: visible !important; position: relative; }
-/* blurred dusk "sky" behind the map — buildings poke up into this blur (matches the app's blur look) */
-.recmap::before {   /* dark backdrop the diorama floats on */
-  content: ""; position: absolute; left: 0; right: 0; top: -64px; height: 284px; z-index: 0;
-  background: radial-gradient(120% 95% at 50% 42%, #15181f 0%, #0d0f13 58%, var(--bg-base) 100%);
-  border-radius: 24px 24px 0 0;
-}
-.recmap .mlmap {
-  position: absolute; left: 0; right: 0; top: -64px; height: 284px; z-index: 1;
-  border-radius: 24px 24px 0 0; overflow: hidden; background: transparent;
-  /* radial fade so the city reads as a floating diorama island with dark margins */
-  -webkit-mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
-  mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
-}
-.rec-card { overflow: visible !important; }
-/* result card map (Assistant) — same: bottom aligned so it doesn't cover the text */
-.result-map { height: 150px !important; overflow: visible !important; }
-.result-map .mlmap {
-  position: absolute; left: 0; right: 0; top: -26px; height: 176px;
-  border-radius: 22px 22px 0 0; overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 100%);
+/* Card map = clean 3D city band (same style as the Globe map). */
+.recmap { height: 200px !important; margin: 0 !important; overflow: hidden !important; position: relative; border-radius: 22px 22px 0 0; }
+.recmap::before { display: none; }
+.recmap .mlmap { position: absolute; inset: 0; z-index: 1; background: #0A0B0D; }
+.rec-card { overflow: hidden !important; }
+/* result card map (Assistant) — clean inset band like the globe/station map */
+.result-card { position: relative; overflow: hidden; }
+.result-map { height: 150px !important; overflow: hidden !important; border-radius: 22px 22px 0 0; }
+.result-map .mlmap { position: absolute; inset: 0; background: #0A0B0D; }
+.result-x {
+  position: absolute; top: 10px; right: 10px; z-index: 5; width: 30px; height: 30px;
+  border-radius: 50%; border: 0; background: rgba(10,11,13,.7); color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px);
 }
 
 /* globe map = 70% of the screen, free-roam below */
@@ -397,15 +388,17 @@ body.no-motion .wbar { animation: none; }
 .asst-idle { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
 .asst-convo { padding: 58px 0 12px; }
 .asst-status { text-align: center; color: var(--text-sec); font-size: 13px; margin-bottom: 12px; font-family: var(--font-disp); }
+.asst-status-live { position: sticky; top: 0; z-index: 2; padding: 8px 0 10px; margin: 0 0 8px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: var(--ember); background: linear-gradient(180deg, var(--bg-base) 60%, transparent); }
 .asst-dock { position: absolute; left: 0; right: 0; bottom: 104px; z-index: 48; display: flex; justify-content: center; padding: 0 22px; }
 .asst-controls { display: flex; align-items: center; gap: 30px; }
 .asst-spacer { width: 48px; height: 48px; display: inline-block; }
 .asst-kb { width: 48px; height: 48px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--glass-stroke); background: rgba(255,255,255,.06); color: var(--text-sec); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.asst-input { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 360px; background: rgba(15,17,22,.92); border: 1px solid var(--glass-stroke); border-radius: 28px; padding: 6px 8px 6px 18px; backdrop-filter: blur(12px); }
-.asst-input input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text-pri); font-family: var(--font-body); font-size: 15px; }
+.asst-input { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 390px; height: 60px; background: rgba(15,17,22,.95); border: 1px solid var(--glass-stroke); border-radius: 30px; padding: 0 9px 0 22px; backdrop-filter: blur(12px); }
+.asst-input input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; color: var(--text-pri); font-family: var(--font-body); font-size: 16px; }
 .asst-input input::placeholder { color: var(--text-mut); }
-.asst-send { width: 42px; height: 42px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--ember); color: #1c0a02; font-size: 18px; font-weight: 700; cursor: pointer; }
-.asst-kb2 { width: 34px; height: 34px; flex: 0 0 auto; border: 0; border-radius: 50%; background: rgba(255,255,255,.06); color: var(--text-sec); cursor: pointer; }
+.asst-send { width: 46px; height: 46px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--ember); color: #1c0a02; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 0; }
+.asst-send svg { display: block; }
+.asst-kb2 { width: 38px; height: 46px; flex: 0 0 auto; border: 0; background: none; color: var(--text-mut); font-size: 19px; cursor: pointer; }
 
 /* ---------- live news rows (Active Nearby) ---------- */
 .news-empty { color: var(--text-sec); font-size: 13px; padding: 8px 4px; }
@@ -439,7 +432,9 @@ body { font-family: var(--font-body); }
 /* a touch more letter-spacing on body text */
 body { letter-spacing: 0.02em; }
 .label { letter-spacing: 0.18em !important; }
-</style></head><body>
+</style>
+</head>
+<body>
 <div id="hf-root"></div>
 <script>
 /**
@@ -831,6 +826,44 @@ return maplibregl$1;
     try { window.open(url, "_blank"); } catch (e) {}
   };
 
+  // Native toast (used to flag demo/fallback data when the backend is unreachable).
+  window.toast = function (msg) {
+    if (window.Android && window.Android.toast) { try { window.Android.toast(msg); } catch (e) {} }
+  };
+
+  // GET /api/mobile/state via the native bridge (dodges WebView mixed-content/cleartext).
+  // Resolves to { ok:boolean, data:object }. ok=false → caller should fall back to demo data.
+  window.loadState = function (station) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (r) { if (!done) { done = true; resolve(r); } };
+      window.__onState = function (o) {
+        try { finish({ ok: !!(o && o.ok), data: JSON.parse((o && o.raw) || "{}") }); }
+        catch (e) { finish({ ok: false, data: {} }); }
+      };
+      if (window.Android && window.Android.fetchState) {
+        window.Android.fetchState(station || "Lewisham");
+        setTimeout(function () { finish({ ok: false, data: {} }); }, 12000);
+      } else { finish({ ok: false, data: {} }); }
+    });
+  };
+
+  // POST /api/mobile/accept. Resolves to { ok:boolean, data:{status,routing_uri} }.
+  window.acceptRecommendation = function (recId, station, unit) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (r) { if (!done) { done = true; resolve(r); } };
+      window.__onAccept = function (o) {
+        try { finish({ ok: !!(o && o.ok), data: JSON.parse((o && o.raw) || "{}") }); }
+        catch (e) { finish({ ok: false, data: {} }); }
+      };
+      if (window.Android && window.Android.acceptRec) {
+        window.Android.acceptRec(recId || "", station || "Lewisham", unit || "P1");
+        setTimeout(function () { finish({ ok: false, data: {} }); }, 12000);
+      } else { finish({ ok: false, data: {} }); }
+    });
+  };
+
   // Fetch live London fire news via the native bridge (GDELT). Resolves to an
   // array of {title, url, domain, seendate}. Cached so list + map share one fetch.
   window.loadNews = function () {
@@ -901,6 +934,12 @@ return maplibregl$1;
     lat: 51.4270,
     base: 0.38,
     type: "Dwelling fire"
+  }, {
+    name: "Lewisham",
+    lon: -0.0117,
+    lat: 51.4626,
+    base: 0.46,
+    type: "Station area"
   }];
   window.FD_WARDS = WARDS;
   function riskColor(v) {
@@ -924,7 +963,7 @@ return maplibregl$1;
       if (!vid || map.getLayer("fd-3d")) return;
       const sym = map.getStyle().layers.find(l => l.type === "symbol");
       // dark = the Station card "isometric blocks" look; otherwise the grey globe city
-      const color = holo ? ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#15181e", 60, "#1d222a", 160, "#262c35"] : ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#46506a", 25, "#5a6684", 80, "#7a6a9a", 180, "#9a6a72"];
+      const color = holo ? ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#2c3543", 45, "#3a4555", 130, "#4a5868"] : ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#46506a", 25, "#5a6684", 80, "#7a6a9a", 180, "#9a6a72"];
       map.addLayer({
         id: "fd-3d",
         source: vid,
@@ -939,22 +978,6 @@ return maplibregl$1;
           "fill-extrusion-vertical-gradient": true
         }
       }, sym && sym.id);
-      // Glowing amber building edges (the diorama "city-lights" look) — card only.
-      if (holo) {
-        map.addLayer({
-          id: "fd-3d-edge",
-          source: vid,
-          "source-layer": "building",
-          type: "line",
-          minzoom: 13,
-          paint: {
-            "line-color": "#FFAE48",
-            "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.4, 16, 1.3, 18, 2.2],
-            "line-opacity": 0.65,
-            "line-blur": 0.6
-          }
-        }, sym && sym.id);
-      }
     } catch (e) {
       console.log("3D buildings fail: " + e);
     }
@@ -1042,7 +1065,8 @@ return maplibregl$1;
     const x = Math.cos(r(a[1])) * Math.sin(r(b[1])) - Math.sin(r(a[1])) * Math.cos(r(b[1])) * Math.cos(r(b[0] - a[0]));
     return (d(Math.atan2(y, x)) + 360) % 360;
   }
-  function addRoute(map, you) {
+  function addRoute(map, you, dest) {
+    dest = dest || BROCKLEY;
     const mgl = window.maplibregl;
     const draw = coords => {
       try {
@@ -1122,13 +1146,13 @@ return maplibregl$1;
         new mgl.Marker({
           element: destEl,
           anchor: "bottom"
-        }).setLngLat(BROCKLEY).addTo(map);
-        // Isometric diorama focused on the start location, route heading to the destination.
+        }).setLngLat(dest).addTo(map);
+        // Isometric 3D city (globe style) focused on the start, route heading to destination.
         map.jumpTo({
           center: you,
-          zoom: 15.3,
-          pitch: 58,
-          bearing: bearingTo(you, BROCKLEY)
+          zoom: 13.6,
+          pitch: 60,
+          bearing: bearingTo(you, dest)
         });
         console.log("FDROUTE drawn pts=" + coords.length);
       } catch (e) {
@@ -1137,8 +1161,8 @@ return maplibregl$1;
     };
     // Draw a straight line immediately so the route always shows, then upgrade to the
     // real road geometry when OSRM responds (it can hang, so never block on it).
-    draw([you, BROCKLEY]);
-    fetch(`https://router.project-osrm.org/route/v1/driving/${you[0]},${you[1]};${BROCKLEY[0]},${BROCKLEY[1]}?overview=full&geometries=geojson`).then(r => r.json()).then(j => {
+    draw([you, dest]);
+    fetch(`https://router.project-osrm.org/route/v1/driving/${you[0]},${you[1]};${dest[0]},${dest[1]}?overview=full&geometries=geojson`).then(r => r.json()).then(j => {
       const c = j && j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
       if (c && c.length) draw(c);
     }).catch(e => console.log("FDROUTE osrm fail " + e));
@@ -1213,7 +1237,8 @@ return maplibregl$1;
   function Map3D({
     preset = "route",
     className = "",
-    style
+    style,
+    dest
   }) {
     const ref = React.useRef(null);
     React.useEffect(() => {
@@ -1224,9 +1249,9 @@ return maplibregl$1;
         container: ref.current,
         style: DARK,
         center: isHeat ? [-0.03, 51.462] : [-0.0117, 51.4626],
-        zoom: isHeat ? 13 : 15.3,
-        pitch: isHeat ? 60 : 58,
-        bearing: isHeat ? -18 : -28,
+        zoom: isHeat ? 13 : 13.6,
+        pitch: isHeat ? 60 : 60,
+        bearing: isHeat ? -18 : -24,
         maxPitch: 85,
         interactive: isHeat,
         dragRotate: isHeat,
@@ -1244,12 +1269,10 @@ return maplibregl$1;
         const c = map.getCanvas(),
           ct = map.getContainer();
         console.log("MAPLOAD preset=" + preset + " style=" + map.isStyleLoaded() + " canvas=" + c.width + "x" + c.height + " ctr=" + ct.clientWidth + "x" + ct.clientHeight);
-        add3DBuildings(map, isHeat ? 12.5 : 13, !isHeat, isHeat ? 4 : 15); // tall skyline on the card, short on the globe (so streets/hydrants show)
-        // Card: transparent sky so the blurred backdrop shows behind the buildings.
+        add3DBuildings(map, isHeat ? 12.5 : 13, false, isHeat ? 4 : 6); // card now matches the globe's grey 3D city
         try {
-          if (map.getLayer("background")) map.setPaintProperty("background", "background-color", isHeat ? "#0A0B0D" : "rgba(0,0,0,0)");
+          if (map.getLayer("background")) map.setPaintProperty("background", "background-color", "#0A0B0D");
         } catch (e) {}
-        // On the card, hide labels so it's clean blocks bleeding out of the card.
         if (!isHeat) {
           try {
             map.getStyle().layers.forEach(l => {
@@ -1261,7 +1284,7 @@ return maplibregl$1;
           addHotspots(map);
           addHydrants(map);
         } // hydrants (200m of wards) only on the globe
-        else addRoute(map, LEWISHAM); // route starts at the station
+        else addRoute(map, LEWISHAM, dest); // route starts at the station -> dest (default Brockley)
         map.resize();
       });
       const tid = setTimeout(() => {
@@ -1676,21 +1699,69 @@ return maplibregl$1;
   });
 })();</script>
 <script>
-// hf-station.jsx — Home / "My Station" (variation A: hero-led). Active Nearby = live London fire news.
+// hf-station.jsx — Home / "My Station" (variation A: hero-led).
+//   Station header + recommendation come from GET /api/mobile/state (native bridge).
+//   Accept posts to /api/mobile/accept then opens Google Maps to the routing target.
+//   If the backend is unreachable, it falls back to demo data and toasts the user.
+//   Active Nearby = live London fire news (Google News RSS via the bridge).
 
 (function () {
   const {
     useState,
     useEffect
   } = React;
-  function RecommendationCard() {
+
+  // Demo fallback — keeps the app fully demoable with the server down.
+  const DEMO = {
+    live: false,
+    station: "Lewisham",
+    pumps: 1,
+    crew: 5,
+    rec: {
+      id: "rec_001",
+      destination: "Brockley",
+      lat: 51.464,
+      lon: -0.036,
+      score: 0.78,
+      reason: null
+    }
+  };
+  const riskLabel = v => v > 0.7 ? "High" : v > 0.4 ? "Med" : "Low";
+  const riskWord = v => v > 0.7 ? "HIGH" : v > 0.4 ? "MED" : "LOW";
+  function RecommendationCard({
+    info
+  }) {
     const [state, setState] = useState("idle"); // idle | routing | enroute | declined
-    const accept = () => {
+    const rec = info.rec;
+    const accept = async () => {
       setState("routing");
-      setTimeout(() => {
+      let lat = rec.lat,
+        lon = rec.lon;
+      const label = rec.destination + " standby";
+      if (info.live) {
+        try {
+          const res = await window.acceptRecommendation(rec.id, info.station, "P1");
+          if (res.ok && res.data && res.data.routing_uri) {
+            const mm = /geo:(-?[0-9.]+),(-?[0-9.]+)/.exec(res.data.routing_uri);
+            if (mm) {
+              lat = parseFloat(mm[1]);
+              lon = parseFloat(mm[2]);
+            }
+          } else {
+            window.toast("Accept not confirmed by server — routing anyway");
+          }
+        } catch (e) {
+          window.toast("Accept not confirmed by server — routing anyway");
+        }
         setState("enroute");
-        window.routeTo("Brockley standby", 51.464, -0.036);
-      }, 1300);
+        window.routeTo(label, lat, lon);
+      } else {
+        // offline demo: brief simulated routing beat, then open Maps
+        setTimeout(() => {
+          setState("enroute");
+          window.routeTo(label, lat, lon);
+        }, 1300);
+      }
     };
     if (state === "declined") {
       return /*#__PURE__*/React.createElement("div", {
@@ -1711,7 +1782,7 @@ return maplibregl$1;
           fontSize: 13.5,
           margin: "6px 0 16px"
         }
-      }, "Holding position at Lewisham."), /*#__PURE__*/React.createElement("button", {
+      }, "Holding position at ", info.station, "."), /*#__PURE__*/React.createElement("button", {
         className: "btn ghost sm",
         onClick: () => setState("idle")
       }, "Undo"));
@@ -1721,12 +1792,14 @@ return maplibregl$1;
     }, /*#__PURE__*/React.createElement("div", {
       className: "recmap"
     }, /*#__PURE__*/React.createElement(Map3D, {
-      preset: "route"
+      preset: "route",
+      dest: [rec.lon, rec.lat],
+      key: rec.destination
     }), state === "routing" || state === "enroute" ? /*#__PURE__*/React.createElement("div", {
       className: "rec-overlay" + (state === "enroute" ? " done" : "")
     }, state === "routing" ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "spinner"
-    }), /*#__PURE__*/React.createElement("span", null, "Routing to Brockley\u2026")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    }), /*#__PURE__*/React.createElement("span", null, "Routing to ", rec.destination, "\u2026")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "check"
     }, "\u2713"), /*#__PURE__*/React.createElement("span", null, "En route \xB7 opening Maps"))) : null), /*#__PURE__*/React.createElement("div", {
       className: "rec-body"
@@ -1748,9 +1821,9 @@ return maplibregl$1;
       style: {
         fontSize: 27
       }
-    }, "\u2192 Brockley")), /*#__PURE__*/React.createElement(Pill, {
-      value: 0.78,
-      label: "High"
+    }, "\u2192 ", rec.destination)), /*#__PURE__*/React.createElement(Pill, {
+      value: rec.score,
+      label: riskLabel(rec.score)
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         color: "var(--text-sec)",
@@ -1758,12 +1831,12 @@ return maplibregl$1;
         lineHeight: 1.4,
         margin: "10px 0 4px"
       }
-    }, "Predicted dwelling-fire risk spike ~", /*#__PURE__*/React.createElement("span", {
+    }, info.live && rec.reason ? rec.reason : /*#__PURE__*/React.createElement(React.Fragment, null, "Predicted dwelling-fire risk spike ~", /*#__PURE__*/React.createElement("span", {
       className: "mono",
       style: {
         color: "var(--text-pri)"
       }
-    }, "19:00"), ". Pre-positioning cuts response by an est. 4 min."), /*#__PURE__*/React.createElement("div", {
+    }, "19:00"), ". Pre-positioning cuts response by an est. 4 min.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 10,
@@ -1783,18 +1856,6 @@ return maplibregl$1;
       disabled: state !== "idle"
     }, state === "idle" ? "Accept & route" : "Routing…"))));
   }
-  const flame = /*#__PURE__*/React.createElement("svg", {
-    viewBox: "0 0 24 24",
-    width: "18",
-    height: "18",
-    fill: "none"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 3c1 3-2 4-2 7a4 4 0 108 0c0-2-1-3-1.5-4 .2 2-1 3-1.5 2.5C13 7 14 5 12 3Z",
-    fill: "#FF6A1A"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M9.5 13a2.5 2.5 0 105 0c0-1-.8-1.6-1-2.2-.3.9-.8 1-1.3.8-.5-.3-.2-1.2.1-1.6-1 .5-2.3 1.7-2.8 3Z",
-    fill: "#FFC24B"
-  }));
   function ago(sd) {
     if (!sd || sd.length < 13) return "";
     const t = Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8), +sd.slice(9, 11), +sd.slice(11, 13));
@@ -1839,6 +1900,41 @@ return maplibregl$1;
   function Station({
     goGlobe
   }) {
+    const [info, setInfo] = useState(DEMO);
+    useEffect(() => {
+      let alive = true;
+      window.loadState("Lewisham").then(({
+        ok,
+        data
+      }) => {
+        if (!alive) return;
+        const recs = data && data.recommendations;
+        if (ok && recs && recs.length) {
+          const r = recs[0];
+          const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
+          setInfo({
+            live: true,
+            station: data.station || "Lewisham",
+            pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
+            crew: 5,
+            // not in the mobile contract; kept static
+            rec: {
+              id: r.recommendation_id,
+              destination: r.destination,
+              lat: r.lat,
+              lon: r.lon,
+              reason: r.reason,
+              score: m ? parseFloat(m[1]) : 0.78
+            }
+          });
+        } else {
+          window.toast("Live data unavailable — showing demo data");
+        }
+      });
+      return () => {
+        alive = false;
+      };
+    }, []);
     return /*#__PURE__*/React.createElement("div", {
       className: "view"
     }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement("div", {
@@ -1870,7 +1966,7 @@ return maplibregl$1;
       style: {
         fontSize: 32
       }
-    }, "Lewisham"), /*#__PURE__*/React.createElement("span", {
+    }, info.station), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -1896,19 +1992,22 @@ return maplibregl$1;
       }
     }, /*#__PURE__*/React.createElement(Chip, {
       k: "Pumps free",
-      v: "1"
+      v: String(info.pumps)
     }), /*#__PURE__*/React.createElement(Chip, {
       k: "Risk",
-      v: "HIGH",
+      v: riskWord(info.rec.score),
       ember: true
     }), /*#__PURE__*/React.createElement(Chip, {
       k: "Crew",
-      v: "5"
+      v: String(info.crew)
     }))), /*#__PURE__*/React.createElement("div", {
       style: {
         height: 72
       }
-    }), /*#__PURE__*/React.createElement(RecommendationCard, null), /*#__PURE__*/React.createElement(SecHead, {
+    }), /*#__PURE__*/React.createElement(RecommendationCard, {
+      info: info,
+      key: info.live ? "live" : "demo"
+    }), /*#__PURE__*/React.createElement(SecHead, {
       link: "See globe",
       onLink: goGlobe
     }, "Active nearby \xB7 live"), /*#__PURE__*/React.createElement("div", {
@@ -2238,16 +2337,26 @@ return maplibregl$1;
     useEffect
   } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
+  const detectWard = text => (window.FD_WARDS || []).find(w => text.toLowerCase().includes(w.name.toLowerCase()));
   function ResultCard({
+    loc,
+    onClose,
     goGlobe
   }) {
-    const route = () => window.routeTo("Brockley standby", 51.464, -0.036);
+    const route = () => window.routeByName(loc.name);
+    const lbl = loc.base > 0.7 ? "High" : loc.base > 0.4 ? "Med" : "Low";
     return /*#__PURE__*/React.createElement("div", {
       className: "result-card glass"
-    }, /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "result-x",
+      onClick: onClose,
+      "aria-label": "Dismiss"
+    }, "\u2715"), /*#__PURE__*/React.createElement("div", {
       className: "result-map"
     }, /*#__PURE__*/React.createElement(Map3D, {
-      preset: "route"
+      preset: "route",
+      dest: [loc.lon, loc.lat],
+      key: loc.name
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         padding: "12px 16px 16px"
@@ -2263,14 +2372,14 @@ return maplibregl$1;
       style: {
         fontSize: 19
       }
-    }, "Brockley"), /*#__PURE__*/React.createElement("div", {
+    }, loc.name), /*#__PURE__*/React.createElement("div", {
       style: {
         color: "var(--text-sec)",
         fontSize: 12.5
       }
-    }, "Dwelling fire \xB7 19:00")), /*#__PURE__*/React.createElement(Pill, {
-      value: 0.78,
-      label: "High"
+    }, loc.type)), /*#__PURE__*/React.createElement(Pill, {
+      value: loc.base,
+      label: lbl
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -2291,6 +2400,7 @@ return maplibregl$1;
     const [mode, setMode] = useState("idle"); // idle | connecting | listening | thinking | speaking
     const [turns, setTurns] = useState([]);
     const [showResult, setShowResult] = useState(false);
+    const [loc, setLoc] = useState(null);
     const [typing, setTyping] = useState(false);
     const [text, setText] = useState("");
     const convRef = useRef(null);
@@ -2352,11 +2462,28 @@ return maplibregl$1;
             setMode(mm === "speaking" ? "speaking" : "listening");
           },
           onMessage: msg => {
-            const t = msg && (msg.message || msg.text) || "";
+            let t = msg && (msg.message || msg.text) || "";
             const src = msg && msg.source || "ai";
+            t = t.replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim(); // strip [calmly] voice tags
             if (!t) return;
-            addTurn(src === "user" ? "you" : "ai", t);
-            if (/brockley/i.test(t)) setShowResult(true);
+            const who = src === "user" ? "you" : "ai";
+            console.log("EL msg " + who + ": " + t.slice(0, 60));
+            setTurns(p => {
+              const last = p[p.length - 1];
+              if (last && last.who === who && last.text === t) return p; // dedupe repeats
+              return [...p, {
+                who,
+                text: t
+              }];
+            });
+            // When the agent names a location, show its card (every reply with a location).
+            if (who === "ai") {
+              const w = detectWard(t);
+              if (w) {
+                setLoc(w);
+                setShowResult(true);
+              }
+            }
           }
         });
         convRef.current = conv;
@@ -2395,19 +2522,16 @@ return maplibregl$1;
       className: "asst-bg-tint"
     }), /*#__PURE__*/React.createElement("div", {
       className: "asst-body"
+    }, turns.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "asst-idle"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "orb-wrap",
-      style: {
-        marginTop: 40
-      }
+      className: "orb-wrap"
     }, /*#__PURE__*/React.createElement(Orb, {
       state: orbState,
       size: 150
     })), /*#__PURE__*/React.createElement("div", {
       className: "asst-status"
-    }, caption), showResult ? /*#__PURE__*/React.createElement(ResultCard, {
-      goGlobe: goGlobe
-    }) : null, turns.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    }, caption), /*#__PURE__*/React.createElement("div", {
       className: "prompts"
     }, /*#__PURE__*/React.createElement("button", {
       className: "prompt-chip",
@@ -2418,12 +2542,20 @@ return maplibregl$1;
     }, "Why Brockley?"), /*#__PURE__*/React.createElement("button", {
       className: "prompt-chip",
       onClick: () => start("Risk in Lewisham tonight?")
-    }, "Risk in Lewisham tonight?")) : /*#__PURE__*/React.createElement("div", {
+    }, "Risk in Lewisham tonight?"))) : /*#__PURE__*/React.createElement("div", {
+      className: "asst-convo"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "asst-status asst-status-live"
+    }, caption), showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
+      loc: loc,
+      onClose: () => setShowResult(false),
+      goGlobe: goGlobe
+    }) : null, /*#__PURE__*/React.createElement("div", {
       className: "transcript"
     }, turns.map((t, i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "bubble " + t.who
-    }, t.text)))), /*#__PURE__*/React.createElement("div", {
+    }, t.text))))), /*#__PURE__*/React.createElement("div", {
       className: "asst-dock"
     }, typing ? /*#__PURE__*/React.createElement("div", {
       className: "asst-input"
@@ -2439,7 +2571,18 @@ return maplibregl$1;
       className: "asst-send",
       onClick: sendText,
       "aria-label": "Send"
-    }, "\u2192"), /*#__PURE__*/React.createElement("button", {
+    }, /*#__PURE__*/React.createElement("svg", {
+      viewBox: "0 0 24 24",
+      width: "22",
+      height: "22",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2.2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }, /*#__PURE__*/React.createElement("path", {
+      d: "M5 12h13M13 6l6 6-6 6"
+    }))), /*#__PURE__*/React.createElement("button", {
       className: "asst-kb2",
       onClick: () => {
         setTyping(false);

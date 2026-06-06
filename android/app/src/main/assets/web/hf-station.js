@@ -1,18 +1,66 @@
-// hf-station.jsx — Home / "My Station" (variation A: hero-led). Active Nearby = live London fire news.
+// hf-station.jsx — Home / "My Station" (variation A: hero-led).
+//   Station header + recommendation come from GET /api/mobile/state (native bridge).
+//   Accept posts to /api/mobile/accept then opens Google Maps to the routing target.
+//   If the backend is unreachable, it falls back to demo data and toasts the user.
+//   Active Nearby = live London fire news (Google News RSS via the bridge).
 
 (function () {
   const {
     useState,
     useEffect
   } = React;
-  function RecommendationCard() {
+
+  // Demo fallback — keeps the app fully demoable with the server down.
+  const DEMO = {
+    live: false,
+    station: "Lewisham",
+    pumps: 1,
+    crew: 5,
+    rec: {
+      id: "rec_001",
+      destination: "Brockley",
+      lat: 51.464,
+      lon: -0.036,
+      score: 0.78,
+      reason: null
+    }
+  };
+  const riskLabel = v => v > 0.7 ? "High" : v > 0.4 ? "Med" : "Low";
+  const riskWord = v => v > 0.7 ? "HIGH" : v > 0.4 ? "MED" : "LOW";
+  function RecommendationCard({
+    info
+  }) {
     const [state, setState] = useState("idle"); // idle | routing | enroute | declined
-    const accept = () => {
+    const rec = info.rec;
+    const accept = async () => {
       setState("routing");
-      setTimeout(() => {
+      let lat = rec.lat,
+        lon = rec.lon;
+      const label = rec.destination + " standby";
+      if (info.live) {
+        try {
+          const res = await window.acceptRecommendation(rec.id, info.station, "P1");
+          if (res.ok && res.data && res.data.routing_uri) {
+            const mm = /geo:(-?[0-9.]+),(-?[0-9.]+)/.exec(res.data.routing_uri);
+            if (mm) {
+              lat = parseFloat(mm[1]);
+              lon = parseFloat(mm[2]);
+            }
+          } else {
+            window.toast("Accept not confirmed by server — routing anyway");
+          }
+        } catch (e) {
+          window.toast("Accept not confirmed by server — routing anyway");
+        }
         setState("enroute");
-        window.routeTo("Brockley standby", 51.464, -0.036);
-      }, 1300);
+        window.routeTo(label, lat, lon);
+      } else {
+        // offline demo: brief simulated routing beat, then open Maps
+        setTimeout(() => {
+          setState("enroute");
+          window.routeTo(label, lat, lon);
+        }, 1300);
+      }
     };
     if (state === "declined") {
       return /*#__PURE__*/React.createElement("div", {
@@ -33,7 +81,7 @@
           fontSize: 13.5,
           margin: "6px 0 16px"
         }
-      }, "Holding position at Lewisham."), /*#__PURE__*/React.createElement("button", {
+      }, "Holding position at ", info.station, "."), /*#__PURE__*/React.createElement("button", {
         className: "btn ghost sm",
         onClick: () => setState("idle")
       }, "Undo"));
@@ -43,12 +91,14 @@
     }, /*#__PURE__*/React.createElement("div", {
       className: "recmap"
     }, /*#__PURE__*/React.createElement(Map3D, {
-      preset: "route"
+      preset: "route",
+      dest: [rec.lon, rec.lat],
+      key: rec.destination
     }), state === "routing" || state === "enroute" ? /*#__PURE__*/React.createElement("div", {
       className: "rec-overlay" + (state === "enroute" ? " done" : "")
     }, state === "routing" ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "spinner"
-    }), /*#__PURE__*/React.createElement("span", null, "Routing to Brockley\u2026")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    }), /*#__PURE__*/React.createElement("span", null, "Routing to ", rec.destination, "\u2026")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
       className: "check"
     }, "\u2713"), /*#__PURE__*/React.createElement("span", null, "En route \xB7 opening Maps"))) : null), /*#__PURE__*/React.createElement("div", {
       className: "rec-body"
@@ -70,9 +120,9 @@
       style: {
         fontSize: 27
       }
-    }, "\u2192 Brockley")), /*#__PURE__*/React.createElement(Pill, {
-      value: 0.78,
-      label: "High"
+    }, "\u2192 ", rec.destination)), /*#__PURE__*/React.createElement(Pill, {
+      value: rec.score,
+      label: riskLabel(rec.score)
     })), /*#__PURE__*/React.createElement("div", {
       style: {
         color: "var(--text-sec)",
@@ -80,12 +130,12 @@
         lineHeight: 1.4,
         margin: "10px 0 4px"
       }
-    }, "Predicted dwelling-fire risk spike ~", /*#__PURE__*/React.createElement("span", {
+    }, info.live && rec.reason ? rec.reason : /*#__PURE__*/React.createElement(React.Fragment, null, "Predicted dwelling-fire risk spike ~", /*#__PURE__*/React.createElement("span", {
       className: "mono",
       style: {
         color: "var(--text-pri)"
       }
-    }, "19:00"), ". Pre-positioning cuts response by an est. 4 min."), /*#__PURE__*/React.createElement("div", {
+    }, "19:00"), ". Pre-positioning cuts response by an est. 4 min.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 10,
@@ -105,18 +155,6 @@
       disabled: state !== "idle"
     }, state === "idle" ? "Accept & route" : "Routing…"))));
   }
-  const flame = /*#__PURE__*/React.createElement("svg", {
-    viewBox: "0 0 24 24",
-    width: "18",
-    height: "18",
-    fill: "none"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 3c1 3-2 4-2 7a4 4 0 108 0c0-2-1-3-1.5-4 .2 2-1 3-1.5 2.5C13 7 14 5 12 3Z",
-    fill: "#FF6A1A"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M9.5 13a2.5 2.5 0 105 0c0-1-.8-1.6-1-2.2-.3.9-.8 1-1.3.8-.5-.3-.2-1.2.1-1.6-1 .5-2.3 1.7-2.8 3Z",
-    fill: "#FFC24B"
-  }));
   function ago(sd) {
     if (!sd || sd.length < 13) return "";
     const t = Date.UTC(+sd.slice(0, 4), +sd.slice(4, 6) - 1, +sd.slice(6, 8), +sd.slice(9, 11), +sd.slice(11, 13));
@@ -161,6 +199,41 @@
   function Station({
     goGlobe
   }) {
+    const [info, setInfo] = useState(DEMO);
+    useEffect(() => {
+      let alive = true;
+      window.loadState("Lewisham").then(({
+        ok,
+        data
+      }) => {
+        if (!alive) return;
+        const recs = data && data.recommendations;
+        if (ok && recs && recs.length) {
+          const r = recs[0];
+          const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
+          setInfo({
+            live: true,
+            station: data.station || "Lewisham",
+            pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
+            crew: 5,
+            // not in the mobile contract; kept static
+            rec: {
+              id: r.recommendation_id,
+              destination: r.destination,
+              lat: r.lat,
+              lon: r.lon,
+              reason: r.reason,
+              score: m ? parseFloat(m[1]) : 0.78
+            }
+          });
+        } else {
+          window.toast("Live data unavailable — showing demo data");
+        }
+      });
+      return () => {
+        alive = false;
+      };
+    }, []);
     return /*#__PURE__*/React.createElement("div", {
       className: "view"
     }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement("div", {
@@ -192,7 +265,7 @@
       style: {
         fontSize: 32
       }
-    }, "Lewisham"), /*#__PURE__*/React.createElement("span", {
+    }, info.station), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -218,19 +291,22 @@
       }
     }, /*#__PURE__*/React.createElement(Chip, {
       k: "Pumps free",
-      v: "1"
+      v: String(info.pumps)
     }), /*#__PURE__*/React.createElement(Chip, {
       k: "Risk",
-      v: "HIGH",
+      v: riskWord(info.rec.score),
       ember: true
     }), /*#__PURE__*/React.createElement(Chip, {
       k: "Crew",
-      v: "5"
+      v: String(info.crew)
     }))), /*#__PURE__*/React.createElement("div", {
       style: {
         height: 72
       }
-    }), /*#__PURE__*/React.createElement(RecommendationCard, null), /*#__PURE__*/React.createElement(SecHead, {
+    }), /*#__PURE__*/React.createElement(RecommendationCard, {
+      info: info,
+      key: info.live ? "live" : "demo"
+    }), /*#__PURE__*/React.createElement(SecHead, {
       link: "See globe",
       onLink: goGlobe
     }, "Active nearby \xB7 live"), /*#__PURE__*/React.createElement("div", {

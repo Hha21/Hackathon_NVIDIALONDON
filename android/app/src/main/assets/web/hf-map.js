@@ -42,6 +42,12 @@
     lat: 51.4270,
     base: 0.38,
     type: "Dwelling fire"
+  }, {
+    name: "Lewisham",
+    lon: -0.0117,
+    lat: 51.4626,
+    base: 0.46,
+    type: "Station area"
   }];
   window.FD_WARDS = WARDS;
   function riskColor(v) {
@@ -65,7 +71,7 @@
       if (!vid || map.getLayer("fd-3d")) return;
       const sym = map.getStyle().layers.find(l => l.type === "symbol");
       // dark = the Station card "isometric blocks" look; otherwise the grey globe city
-      const color = holo ? ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#15181e", 60, "#1d222a", 160, "#262c35"] : ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#46506a", 25, "#5a6684", 80, "#7a6a9a", 180, "#9a6a72"];
+      const color = holo ? ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#2c3543", 45, "#3a4555", 130, "#4a5868"] : ["interpolate", ["linear"], ["coalesce", ["get", "render_height"], 10], 0, "#46506a", 25, "#5a6684", 80, "#7a6a9a", 180, "#9a6a72"];
       map.addLayer({
         id: "fd-3d",
         source: vid,
@@ -80,22 +86,6 @@
           "fill-extrusion-vertical-gradient": true
         }
       }, sym && sym.id);
-      // Glowing amber building edges (the diorama "city-lights" look) — card only.
-      if (holo) {
-        map.addLayer({
-          id: "fd-3d-edge",
-          source: vid,
-          "source-layer": "building",
-          type: "line",
-          minzoom: 13,
-          paint: {
-            "line-color": "#FFAE48",
-            "line-width": ["interpolate", ["linear"], ["zoom"], 13, 0.4, 16, 1.3, 18, 2.2],
-            "line-opacity": 0.65,
-            "line-blur": 0.6
-          }
-        }, sym && sym.id);
-      }
     } catch (e) {
       console.log("3D buildings fail: " + e);
     }
@@ -183,7 +173,8 @@
     const x = Math.cos(r(a[1])) * Math.sin(r(b[1])) - Math.sin(r(a[1])) * Math.cos(r(b[1])) * Math.cos(r(b[0] - a[0]));
     return (d(Math.atan2(y, x)) + 360) % 360;
   }
-  function addRoute(map, you) {
+  function addRoute(map, you, dest) {
+    dest = dest || BROCKLEY;
     const mgl = window.maplibregl;
     const draw = coords => {
       try {
@@ -263,13 +254,13 @@
         new mgl.Marker({
           element: destEl,
           anchor: "bottom"
-        }).setLngLat(BROCKLEY).addTo(map);
-        // Isometric diorama focused on the start location, route heading to the destination.
+        }).setLngLat(dest).addTo(map);
+        // Isometric 3D city (globe style) focused on the start, route heading to destination.
         map.jumpTo({
           center: you,
-          zoom: 15.3,
-          pitch: 58,
-          bearing: bearingTo(you, BROCKLEY)
+          zoom: 13.6,
+          pitch: 60,
+          bearing: bearingTo(you, dest)
         });
         console.log("FDROUTE drawn pts=" + coords.length);
       } catch (e) {
@@ -278,8 +269,8 @@
     };
     // Draw a straight line immediately so the route always shows, then upgrade to the
     // real road geometry when OSRM responds (it can hang, so never block on it).
-    draw([you, BROCKLEY]);
-    fetch(`https://router.project-osrm.org/route/v1/driving/${you[0]},${you[1]};${BROCKLEY[0]},${BROCKLEY[1]}?overview=full&geometries=geojson`).then(r => r.json()).then(j => {
+    draw([you, dest]);
+    fetch(`https://router.project-osrm.org/route/v1/driving/${you[0]},${you[1]};${dest[0]},${dest[1]}?overview=full&geometries=geojson`).then(r => r.json()).then(j => {
       const c = j && j.routes && j.routes[0] && j.routes[0].geometry && j.routes[0].geometry.coordinates;
       if (c && c.length) draw(c);
     }).catch(e => console.log("FDROUTE osrm fail " + e));
@@ -354,7 +345,8 @@
   function Map3D({
     preset = "route",
     className = "",
-    style
+    style,
+    dest
   }) {
     const ref = React.useRef(null);
     React.useEffect(() => {
@@ -365,9 +357,9 @@
         container: ref.current,
         style: DARK,
         center: isHeat ? [-0.03, 51.462] : [-0.0117, 51.4626],
-        zoom: isHeat ? 13 : 15.3,
-        pitch: isHeat ? 60 : 58,
-        bearing: isHeat ? -18 : -28,
+        zoom: isHeat ? 13 : 13.6,
+        pitch: isHeat ? 60 : 60,
+        bearing: isHeat ? -18 : -24,
         maxPitch: 85,
         interactive: isHeat,
         dragRotate: isHeat,
@@ -385,12 +377,10 @@
         const c = map.getCanvas(),
           ct = map.getContainer();
         console.log("MAPLOAD preset=" + preset + " style=" + map.isStyleLoaded() + " canvas=" + c.width + "x" + c.height + " ctr=" + ct.clientWidth + "x" + ct.clientHeight);
-        add3DBuildings(map, isHeat ? 12.5 : 13, !isHeat, isHeat ? 4 : 15); // tall skyline on the card, short on the globe (so streets/hydrants show)
-        // Card: transparent sky so the blurred backdrop shows behind the buildings.
+        add3DBuildings(map, isHeat ? 12.5 : 13, false, isHeat ? 4 : 6); // card now matches the globe's grey 3D city
         try {
-          if (map.getLayer("background")) map.setPaintProperty("background", "background-color", isHeat ? "#0A0B0D" : "rgba(0,0,0,0)");
+          if (map.getLayer("background")) map.setPaintProperty("background", "background-color", "#0A0B0D");
         } catch (e) {}
-        // On the card, hide labels so it's clean blocks bleeding out of the card.
         if (!isHeat) {
           try {
             map.getStyle().layers.forEach(l => {
@@ -402,7 +392,7 @@
           addHotspots(map);
           addHydrants(map);
         } // hydrants (200m of wards) only on the globe
-        else addRoute(map, LEWISHAM); // route starts at the station
+        else addRoute(map, LEWISHAM, dest); // route starts at the station -> dest (default Brockley)
         map.resize();
       });
       const tid = setTimeout(() => {

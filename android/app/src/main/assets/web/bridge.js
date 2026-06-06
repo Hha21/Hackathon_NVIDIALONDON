@@ -24,6 +24,44 @@
     try { window.open(url, "_blank"); } catch (e) {}
   };
 
+  // Native toast (used to flag demo/fallback data when the backend is unreachable).
+  window.toast = function (msg) {
+    if (window.Android && window.Android.toast) { try { window.Android.toast(msg); } catch (e) {} }
+  };
+
+  // GET /api/mobile/state via the native bridge (dodges WebView mixed-content/cleartext).
+  // Resolves to { ok:boolean, data:object }. ok=false → caller should fall back to demo data.
+  window.loadState = function (station) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (r) { if (!done) { done = true; resolve(r); } };
+      window.__onState = function (o) {
+        try { finish({ ok: !!(o && o.ok), data: JSON.parse((o && o.raw) || "{}") }); }
+        catch (e) { finish({ ok: false, data: {} }); }
+      };
+      if (window.Android && window.Android.fetchState) {
+        window.Android.fetchState(station || "Lewisham");
+        setTimeout(function () { finish({ ok: false, data: {} }); }, 12000);
+      } else { finish({ ok: false, data: {} }); }
+    });
+  };
+
+  // POST /api/mobile/accept. Resolves to { ok:boolean, data:{status,routing_uri} }.
+  window.acceptRecommendation = function (recId, station, unit) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (r) { if (!done) { done = true; resolve(r); } };
+      window.__onAccept = function (o) {
+        try { finish({ ok: !!(o && o.ok), data: JSON.parse((o && o.raw) || "{}") }); }
+        catch (e) { finish({ ok: false, data: {} }); }
+      };
+      if (window.Android && window.Android.acceptRec) {
+        window.Android.acceptRec(recId || "", station || "Lewisham", unit || "P1");
+        setTimeout(function () { finish({ ok: false, data: {} }); }, 12000);
+      } else { finish({ ok: false, data: {} }); }
+    });
+  };
+
   // Fetch live London fire news via the native bridge (GDELT). Resolves to an
   // array of {title, url, domain, seendate}. Cached so list + map share one fetch.
   window.loadNews = function () {

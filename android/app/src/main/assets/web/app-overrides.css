@@ -25,28 +25,19 @@ body {
 
 /* route map inside the recommendation card — a top band; bottom aligns with the band so
    it never covers the text below. Top extends above the card with a fade so buildings "pop". */
-.recmap { height: 220px !important; margin: 0 !important; overflow: visible !important; position: relative; }
-/* blurred dusk "sky" behind the map — buildings poke up into this blur (matches the app's blur look) */
-.recmap::before {   /* dark backdrop the diorama floats on */
-  content: ""; position: absolute; left: 0; right: 0; top: -64px; height: 284px; z-index: 0;
-  background: radial-gradient(120% 95% at 50% 42%, #15181f 0%, #0d0f13 58%, var(--bg-base) 100%);
-  border-radius: 24px 24px 0 0;
-}
-.recmap .mlmap {
-  position: absolute; left: 0; right: 0; top: -64px; height: 284px; z-index: 1;
-  border-radius: 24px 24px 0 0; overflow: hidden; background: transparent;
-  /* radial fade so the city reads as a floating diorama island with dark margins */
-  -webkit-mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
-  mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
-}
-.rec-card { overflow: visible !important; }
-/* result card map (Assistant) — same: bottom aligned so it doesn't cover the text */
-.result-map { height: 150px !important; overflow: visible !important; }
-.result-map .mlmap {
-  position: absolute; left: 0; right: 0; top: -26px; height: 176px;
-  border-radius: 22px 22px 0 0; overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18%, #000 100%);
+/* Card map = clean 3D city band (same style as the Globe map). */
+.recmap { height: 200px !important; margin: 0 !important; overflow: hidden !important; position: relative; border-radius: 22px 22px 0 0; }
+.recmap::before { display: none; }
+.recmap .mlmap { position: absolute; inset: 0; z-index: 1; background: #0A0B0D; }
+.rec-card { overflow: hidden !important; }
+/* result card map (Assistant) — clean inset band like the globe/station map */
+.result-card { position: relative; overflow: hidden; }
+.result-map { height: 150px !important; overflow: hidden !important; border-radius: 22px 22px 0 0; }
+.result-map .mlmap { position: absolute; inset: 0; background: #0A0B0D; }
+.result-x {
+  position: absolute; top: 10px; right: 10px; z-index: 5; width: 30px; height: 30px;
+  border-radius: 50%; border: 0; background: rgba(10,11,13,.7); color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px);
 }
 
 /* globe map = 70% of the screen, free-roam below */
@@ -112,15 +103,17 @@ body.no-motion .wbar { animation: none; }
 .asst-idle { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
 .asst-convo { padding: 58px 0 12px; }
 .asst-status { text-align: center; color: var(--text-sec); font-size: 13px; margin-bottom: 12px; font-family: var(--font-disp); }
+.asst-status-live { position: sticky; top: 0; z-index: 2; padding: 8px 0 10px; margin: 0 0 8px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: var(--ember); background: linear-gradient(180deg, var(--bg-base) 60%, transparent); }
 .asst-dock { position: absolute; left: 0; right: 0; bottom: 104px; z-index: 48; display: flex; justify-content: center; padding: 0 22px; }
 .asst-controls { display: flex; align-items: center; gap: 30px; }
 .asst-spacer { width: 48px; height: 48px; display: inline-block; }
 .asst-kb { width: 48px; height: 48px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--glass-stroke); background: rgba(255,255,255,.06); color: var(--text-sec); display: flex; align-items: center; justify-content: center; cursor: pointer; }
-.asst-input { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 360px; background: rgba(15,17,22,.92); border: 1px solid var(--glass-stroke); border-radius: 28px; padding: 6px 8px 6px 18px; backdrop-filter: blur(12px); }
-.asst-input input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text-pri); font-family: var(--font-body); font-size: 15px; }
+.asst-input { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 390px; height: 60px; background: rgba(15,17,22,.95); border: 1px solid var(--glass-stroke); border-radius: 30px; padding: 0 9px 0 22px; backdrop-filter: blur(12px); }
+.asst-input input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; color: var(--text-pri); font-family: var(--font-body); font-size: 16px; }
 .asst-input input::placeholder { color: var(--text-mut); }
-.asst-send { width: 42px; height: 42px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--ember); color: #1c0a02; font-size: 18px; font-weight: 700; cursor: pointer; }
-.asst-kb2 { width: 34px; height: 34px; flex: 0 0 auto; border: 0; border-radius: 50%; background: rgba(255,255,255,.06); color: var(--text-sec); cursor: pointer; }
+.asst-send { width: 46px; height: 46px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--ember); color: #1c0a02; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 0; }
+.asst-send svg { display: block; }
+.asst-kb2 { width: 38px; height: 46px; flex: 0 0 auto; border: 0; background: none; color: var(--text-mut); font-size: 19px; cursor: pointer; }
 
 /* ---------- live news rows (Active Nearby) ---------- */
 .news-empty { color: var(--text-sec); font-size: 13px; padding: 8px 4px; }
