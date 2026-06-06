@@ -135,9 +135,16 @@ The web voice agent works in read-only mode without a key; live conversation nee
 
 Rather than predicting individual fires (which is noise), the model learns the **intensity function** — the expected rate of incidents per ward per unit time — as a function of historical patterns, weather, and calendar context. Sampling many forward rollouts from the trained model gives a probabilistic 24-hour heatmap over London's wards, rendered as an interactive Three.js 3D surface.
 
+The DGX Spark carries **two** GPU workloads at once, both on the one GB10 box — and its 128 GB unified memory is what lets them stay resident together:
+
+1. **The forecast model** — trains the GPT-2 transformer and runs rollout inference to produce `outputs/forecast_24h.json`.
+2. **The Nemotron voice brain** — serves NVIDIA Nemotron-3-Nano locally (llama.cpp + GGUF, all layers on the GPU) as the LLM behind the ElevenLabs voice agent, reached over a cloudflared tunnel as a `custom_llm`.
+
+So the Spark is not just a one-shot forecast producer — it is also the always-on inference server for the natural-language assistant. Both the predictive model and the conversational reasoning run on-box, so no operational data leaves the machine for either path.
+
 ### Architecture — four layers
 
-1. **DGX Spark (GPU)** — data preprocessing, model training (19.5M-param GPT-2 small, ~28 min on GB10), and KV-cached Monte Carlo rollout inference (102 stations × rollouts). Produces `outputs/forecast_24h.json`. Also serves the Nemotron voice brain.
+1. **DGX Spark (GPU)** — runs both GPU workloads above: (a) data preprocessing, model training (19.5M-param GPT-2 small, ~28 min on GB10), and KV-cached Monte Carlo rollout inference (102 stations × rollouts) producing `outputs/forecast_24h.json`; and (b) the persistent Nemotron-3-Nano voice brain that powers the assistant.
 2. **FastAPI backend (CPU only)** — hot-reloads the JSON on `mtime` change; serves forecast, scenario, mobile, ask, and live-generate routes; no CUDA dependency.
 3. **Three.js web dashboard** — 3D ward risk surface over a real London basemap + OSM buildings, timeline scrubber, scenario/generate panel, ElevenLabs voice agent.
 4. **Android dispatch app** — Kotlin + WebView shell; Station tab (recommendation → Accept → Maps routing), Globe tab (3D risk), Assistant tab (ElevenLabs voice).
