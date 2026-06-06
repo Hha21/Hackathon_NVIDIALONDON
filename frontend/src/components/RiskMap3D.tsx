@@ -248,10 +248,12 @@ function CameraRig({
   controls,
   target,
   home,
+  mapCenter,
 }: {
   controls: React.RefObject<any>;
   target: Target | null;
   home: Target;
+  mapCenter: { x: number; z: number };
 }) {
   const settling = useRef(false); // true while easing back home after a focus
   const tp = useRef(new THREE.Vector3());
@@ -264,7 +266,16 @@ function CameraRig({
     const d = target ?? home;
     if (target) c.autoRotate = false;
     tp.current.set(d.x, 3, d.z);
-    cp.current.set(d.x, d.dist * 0.7, d.z + d.dist);
+    if (target) {
+      // Place camera on the opposite side of the ward from the map centre so the
+      // ward sits in the foreground and the full map is visible behind it.
+      const dx = mapCenter.x - d.x;
+      const dz = mapCenter.z - d.z;
+      const len = Math.sqrt(dx * dx + dz * dz) || 1;
+      cp.current.set(d.x - (dx / len) * d.dist, d.dist * 0.7, d.z - (dz / len) * d.dist);
+    } else {
+      cp.current.set(d.x, d.dist * 0.7, d.z + d.dist);
+    }
     c.target.lerp(tp.current, 0.07);
     c.object.position.lerp(cp.current, 0.07);
     c.update();
@@ -579,7 +590,7 @@ export default function RiskMap3D({
       {rings.map((r, i) => (
         <FocusBorder key={`${r.color}-${i}`} x={r.x} z={r.z} color={r.color} />
       ))}
-      <CameraRig controls={controlsRef} target={focusTarget} home={home} />
+      <CameraRig controls={controlsRef} target={focusTarget} home={home} mapCenter={center} />
       <OrbitControls
         ref={controlsRef}
         makeDefault
