@@ -1,0 +1,149 @@
+/* app-overrides.css — full-bleed device render + real-map (MapLibre) styling + nav tweaks. */
+
+html, body { background: var(--bg-base); height: 100%; }
+body {
+  display: block;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#hf-root { width: 100%; height: 100%; display: block; }
+.screen { position: fixed; inset: 0; width: 100vw; height: 100dvh; border-radius: 0; background: var(--bg-base); overflow: hidden; }
+:root { --blur: 22px; }
+.tweaks, .tweaks-fab, .tweaks-panel, .stage > .tweaks { display: none !important; }
+
+/* ---------- bottom nav: taller, rounder, tighter, bigger icons ---------- */
+.nav { left: 14%; right: 14%; bottom: 22px; height: 74px; border-radius: 40px;
+  justify-content: center; gap: 34px; padding: 0; }
+.nav-item { width: 56px; height: 56px; }
+.nav-item svg { width: 32px; height: 32px; }
+.nav-item .ind { top: -11px; width: 24px; }
+
+/* ---------- MapLibre real maps ---------- */
+.mlmap { width: 100%; height: 100%; }
+.mlmap .maplibregl-canvas { outline: none; }
+.maplibregl-ctrl, .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none !important; }
+
+/* route map inside the recommendation card — a top band; bottom aligns with the band so
+   it never covers the text below. Top extends above the card with a fade so buildings "pop". */
+/* Card map = clean 3D city band (same style as the Globe map). */
+.recmap { height: 200px !important; margin: 0 !important; overflow: hidden !important; position: relative; border-radius: 22px 22px 0 0; }
+.recmap::before { display: none; }
+.recmap .mlmap { position: absolute; inset: 0; z-index: 1; background: #0A0B0D; }
+.rec-card { overflow: hidden !important; }
+/* result card map (Assistant) — clean inset band like the globe/station map */
+.result-card { position: relative; overflow: hidden; }
+.result-map { height: 150px !important; overflow: hidden !important; border-radius: 22px 22px 0 0; }
+.result-map .mlmap { position: absolute; inset: 0; background: #0A0B0D; }
+.result-x {
+  position: absolute; top: 10px; right: 10px; z-index: 5; width: 30px; height: 30px;
+  border-radius: 50%; border: 0; background: rgba(10,11,13,.7); color: #fff; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(6px);
+}
+
+/* globe map = 70% of the screen, free-roam below */
+.globe-map { height: 70vh; }
+.globe-map .mlmap { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* route pins */
+.you-pin { width: 16px; height: 16px; border-radius: 50%; background: var(--signal);
+  border: 2px solid #fff; box-shadow: 0 0 12px var(--signal); }
+.dest-pin span { display: block; width: 15px; height: 15px; border-radius: 50% 50% 50% 0;
+  transform: rotate(45deg); background: var(--ember); border: 2px solid #fff;
+  box-shadow: 0 0 14px var(--ember); }
+
+/* ward hotspot label markers (name + risk + type) with a stem pointing to the spot */
+.ward-marker { display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.wm-card { background: rgba(15,17,22,.85); border: 1px solid var(--glass-stroke); border-radius: 12px;
+  padding: 6px 10px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 22px -8px rgba(0,0,0,.75); white-space: nowrap; }
+.wm-top { display: flex; align-items: center; gap: 6px; }
+.wm-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.wm-name { font-family: var(--font-disp); font-weight: 600; font-size: 12.5px; color: var(--text-pri); }
+.wm-risk { font-family: var(--font-mono); font-weight: 700; font-size: 12px; margin-left: 3px; }
+.wm-sub { font-size: 9.5px; color: var(--text-sec); margin-top: 1px; }
+.wm-stem { width: 2px; height: 16px; background: linear-gradient(var(--glass-stroke), transparent); }
+
+/* ---------- Assistant: blurred fire-truck hero background (instead of black) ---------- */
+.view-asst { background: var(--bg-base); }
+.asst-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background: url('assets/hero-truck.png') center 35% / cover no-repeat;
+  filter: blur(16px) saturate(1.2) brightness(0.92);
+  transform: scale(1.12);   /* hide blur edge bleed */
+}
+.asst-bg-tint {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, rgba(10,11,13,0.20), rgba(10,11,13,0.45) 55%, rgba(10,11,13,0.78));
+}
+
+/* ---------- ward detail sheet sits ABOVE the bottom nav ---------- */
+.sheet-scrim { z-index: 65 !important; }
+.ward-sheet { bottom: 104px !important; z-index: 70 !important; border-radius: 28px !important; }
+
+/* ---------- animated waveform scrubber ---------- */
+.scrub-wave {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: space-between; gap: 1px; padding: 0 1px; pointer-events: none; z-index: 0;
+}
+.wbar {
+  flex: 1 1 auto; min-width: 2px; max-width: 6px; border-radius: 2px;
+  background: rgba(255,106,26,.45); transform-origin: center;
+  animation: wbar 1.2s ease-in-out infinite alternate;
+}
+.wbar.on { background: var(--ember); box-shadow: 0 0 8px var(--ember); }
+@keyframes wbar { from { transform: scaleY(.5); } to { transform: scaleY(1); } }
+body.no-motion .wbar { animation: none; }
+/* keep the progress line + knob above the wave */
+.scrub-track { z-index: 1; }
+
+/* ---------- Assistant (clean, bounded, no overflow) ---------- */
+.view-asst .topbar { display: none !important; }
+.asst-body { position: absolute; top: 0; left: 0; right: 0; bottom: 156px; overflow-y: auto; z-index: 1; padding: 0 18px; }
+.asst-body::-webkit-scrollbar { display: none; }
+.asst-idle { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.asst-convo { padding: 58px 0 12px; }
+.asst-status { text-align: center; color: var(--text-sec); font-size: 13px; margin-bottom: 12px; font-family: var(--font-disp); }
+.asst-status-live { position: sticky; top: 0; z-index: 2; padding: 8px 0 10px; margin: 0 0 8px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: var(--ember); background: linear-gradient(180deg, var(--bg-base) 60%, transparent); }
+.asst-dock { position: absolute; left: 0; right: 0; bottom: 104px; z-index: 48; display: flex; justify-content: center; padding: 0 22px; }
+.asst-controls { display: flex; align-items: center; gap: 30px; }
+.asst-spacer { width: 48px; height: 48px; display: inline-block; }
+.asst-kb { width: 48px; height: 48px; flex: 0 0 auto; border-radius: 50%; border: 1px solid var(--glass-stroke); background: rgba(255,255,255,.06); color: var(--text-sec); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.asst-input { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 390px; height: 60px; background: rgba(15,17,22,.95); border: 1px solid var(--glass-stroke); border-radius: 30px; padding: 0 9px 0 22px; backdrop-filter: blur(12px); }
+.asst-input input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: none; color: var(--text-pri); font-family: var(--font-body); font-size: 16px; }
+.asst-input input::placeholder { color: var(--text-mut); }
+.asst-send { width: 46px; height: 46px; flex: 0 0 auto; border: 0; border-radius: 50%; background: var(--ember); color: #1c0a02; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; line-height: 0; }
+.asst-send svg { display: block; }
+.asst-kb2 { width: 38px; height: 46px; flex: 0 0 auto; border: 0; background: none; color: var(--text-mut); font-size: 19px; cursor: pointer; }
+
+/* ---------- live news rows (Active Nearby) ---------- */
+.news-empty { color: var(--text-sec); font-size: 13px; padding: 8px 4px; }
+.news-row { cursor: pointer; }
+.news-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+.news-chev { color: var(--text-mut); font-size: 20px; align-self: center; }
+
+/* ---------- Globe: free-roam map on top + scrollable sheet below ---------- */
+.globe-map { height: 60vh !important; }
+.globe-mapfade { pointer-events: none; }
+.globe-sheet { position: absolute; left: 0; right: 0; top: 57vh; bottom: 0; z-index: 3; overflow-y: auto;
+  background: linear-gradient(180deg, transparent 0, var(--bg-base) 7%, var(--bg-base)); border-radius: 26px 26px 0 0; }
+.globe-sheet::-webkit-scrollbar { display: none; }
+/* slider: allow real dragging (don't let vertical scroll steal the horizontal drag) */
+.scrubber input[type=range] { touch-action: none; }
+.scrub-mid { touch-action: none; }
+
+/* ---------- Geist Mono for everything except headers (display/title stay Space Grotesk) ---------- */
+:root { --font-body: 'Geist Mono', ui-monospace, monospace; --font-mono: 'Geist Mono', ui-monospace, monospace; }
+body { font-family: var(--font-body); }
+
+/* news rows: smaller, mono, clean tick instead of an icon */
+.news-tick { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 8px var(--ember); flex: 0 0 auto; margin: 0 12px 0 6px; align-self: center; }
+.news-title { font-size: 12px; font-family: var(--font-body); line-height: 1.35; }
+.news-src { font-size: 9px !important; color: var(--text-mut) !important; letter-spacing: .01em; }
+
+/* ---------- bigger globe map ---------- */
+.globe-map { height: 68vh !important; }
+.globe-sheet { top: 64vh !important; }
+
+/* a touch more letter-spacing on body text */
+body { letter-spacing: 0.02em; }
+.label { letter-spacing: 0.18em !important; }

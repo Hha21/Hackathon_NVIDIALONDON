@@ -1,91 +1,57 @@
 # Foresight Dispatch — Android app (Person C)
 
-Mock fire-dispatch app for **Foresight for Fires**. Turns the backend's model
-recommendations into real dispatch actions: view the incident queue, accept a
-pre-position recommendation, and **open Google Maps routing** to the standby
-location. Includes scenario test buttons and a native voice assistant.
+Mock fire-dispatch app for a London Fire Brigade station officer. Fetches an AI
+recommendation, shows the incident queue, and **Accept opens turn-by-turn routing
+in Google Maps**. Three tabs: **Station** (home), **Globe** (3D risk surface),
+**Assistant** (ElevenLabs voice).
 
-Kotlin · Jetpack Compose · Retrofit · Android Maps intent · SpeechRecognizer / TextToSpeech.
+Built on the backend's `/api/mobile/*` contract — see root `README.md` and
+`docs/PERSON_C_android_voice.md`.
 
----
+## Stack
+- Kotlin + Jetpack Compose (Material 3)
+- Retrofit + OkHttp + Gson (networking)
+- Coil (images)
+- AGP 8.13.2 · Kotlin 2.0.21 · Gradle 8.13 · compileSdk 36 · minSdk 26
 
-## What it does
+## Point the app at the backend
+Edit the one constant in
+`app/src/main/java/com/foresight/dispatch/data/Api.kt`:
 
-1. Select a station (Lewisham / Deptford / New Cross).
-2. Pull dispatch state from `GET /api/mobile/state` — available pumps, incident
-   queue, and the recommended standby move (grounded in the forecast).
-3. **Accept & route** → `POST /api/mobile/accept` → fires a `geo:` Maps intent
-   to the destination. **Reject** dismisses the card.
-4. Scenario chips ("Bonfire Night", "Two pumps committed", "High wind") →
-   `POST /api/ask` → shows + speaks the assistant's answer.
-5. Mic button → speech-to-text → `/api/ask` → answer read back via TTS.
+```kotlin
+object Backend {
+    const val BASE_URL = "http://10.0.2.2:8000/"   // emulator → host loopback
+}
+```
 
-## API contract consumed
+- **Emulator:** `http://10.0.2.2:8000/`
+- **Real phone (same Wi-Fi as the laptop):** `http://<LAPTOP_LAN_IP>:8000/`
+  Find the IP on the Mac with: `ipconfig getifaddr en0`
+  And run the backend bound to all interfaces:
+  `uvicorn backend.main:app --host 0.0.0.0 --port 8000`
 
-Mirrors `backend/schemas.py` (frozen). Routes: `GET /api/mobile/state?station=`,
-`POST /api/mobile/accept`, `POST /api/ask`. Wire models in
-`app/src/main/java/com/foresight/dispatch/data/Models.kt`.
-
----
+Cleartext HTTP is enabled (`usesCleartextTraffic="true"`) for local-network dev.
 
 ## Build & run
 
-Requires Android Studio (Koala+) or the Android SDK + JDK 17.
+**Android Studio:** open the `android/` folder, let Gradle sync, pick your device, hit **Run**.
 
-### Backend base URL
-
-Set in `app/build.gradle.kts` via `API_BASE_URL`:
-
-| Target | URL |
-|---|---|
-| Emulator (host machine) | `http://10.0.2.2:8000/` (default) |
-| Physical device on same Wi-Fi | `http://<your-laptop-LAN-IP>:8000/` |
-| DGX Spark on LAN | `http://<spark-ip>:8000/` |
-
-Cleartext HTTP is enabled (`usesCleartextTraffic="true"`) for local demo only.
-
-### Steps
-
+**CLI:**
 ```bash
-# 1. start the backend (from repo root)
-uvicorn backend.main:app --host 0.0.0.0 --port 8000
-
-# 2. open android/ in Android Studio, let Gradle sync, Run 'app'
-#    or, with the SDK on PATH and a wrapper generated:
 cd android
-gradle wrapper          # first time only, to create ./gradlew
-./gradlew installDebug  # build + install on a connected device/emulator
+./gradlew :app:assembleDebug          # build
+./gradlew :app:installDebug           # install on connected device
+adb shell am start -n com.foresight.dispatch/.MainActivity
 ```
 
-> No `gradlew` is checked in (binary wrapper jar). Run `gradle wrapper` once, or
-> just open the project in Android Studio which provisions it automatically.
+Connect a real phone over USB with **USB debugging** enabled (`adb devices` should
+list it). The brief warns emulators handle the `geo:` Maps intent inconsistently —
+test routing on a real device.
 
-### Demo notes
-
-- **Test the Maps intent on a real device** — emulators handle `geo:` URIs
-  inconsistently. Google Maps must be installed (the app falls back to any
-  `geo:` handler, then toasts if none).
-- Grant the microphone permission on first mic tap for voice.
-- Keep a backup screen recording of the accept → route flow for the stage.
-
----
-
-## Structure
-
-```
-app/src/main/java/com/foresight/dispatch/
-  MainActivity.kt              # wires VM, voice, mic permission, Maps intent
-  data/Models.kt               # wire models (mirror backend contract)
-  data/ApiService.kt           # Retrofit endpoints
-  data/Network.kt              # Retrofit/OkHttp setup
-  ui/DispatchViewModel.kt      # state, fetch/accept/reject/ask, scenarios
-  ui/DispatchScreen.kt         # Compose UI
-  voice/VoiceController.kt      # SpeechRecognizer + TextToSpeech
-  voice/SimpleRecognitionListener.kt
-```
-
-## Stretch (bounty path)
-
-Swap `VoiceController` for ElevenLabs STT/TTS and point `/api/ask` at a local
-NIM/Nemotron agent (coordinate with A & B) — the `onResult`/`speak` seam stays
-the same.
+## Status
+- [x] 3-tab shell + bottom nav
+- [x] Fetch `/api/mobile/state`, render station + recommendation + incident list
+- [x] Accept → `/api/mobile/accept` → **Google Maps routing intent** (with fallbacks)
+- [ ] Reskin to the "Fire Control" design (`docs/design/`)
+- [ ] Globe tab (bespoke Three.js in full-bleed WebView)
+- [ ] Assistant tab (ElevenLabs Conversational AI + client tools)
