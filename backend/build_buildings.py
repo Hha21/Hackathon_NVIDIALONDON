@@ -36,10 +36,15 @@ BBOX = {
     # central + SE London: City fringe, Southwark, Lambeth E, Greenwich,
     # Lewisham, Catford — fills the visible part of the Greater-London basemap.
     "extended": (51.40, -0.13, 51.56, 0.09),
+    # whole Greater-London data extent (matches the incident bbox / GLA boundary).
+    # Empty cells (Surrey/Kent corners) are skipped via the coverage mask.
+    "all_london": (51.287, -0.510, 51.692, 0.322),
 }[REGION]
 
-GRID = {"lewisham": 2, "extended": 6}[REGION]  # NxN sub-queries
-MIN_AREA_M2 = 45.0          # drop sheds / tiny footprints
+GRID = {"lewisham": 2, "extended": 6, "all_london": 8}[REGION]  # NxN sub-queries
+# all_london covers ~5x the area of extended, so raise the min footprint to cut
+# the GPU instance count; tiny sheds add nothing at that zoom.
+MIN_AREA_M2 = 110.0 if REGION == "all_london" else 45.0
 MAX_BUILDINGS = 380_000     # cap instances (keep largest by area)
 DEFAULT_LEVELS = 3
 M_PER_LEVEL = 3.1
@@ -86,6 +91,12 @@ def main() -> None:
     m_lat = 111_130.0
     m_lon = 111_320.0 * math.cos(math.radians(latC))
 
+    # Coverage mask: skip empty (no-incident) cells/buildings outside the city.
+    covered = None
+    if REGION == "all_london":
+        from backend.coverage import is_covered_fn, load_bounds
+        covered = is_covered_fn(load_bounds())
+
     seen: dict[int, list] = {}
     dlat = (n0 - s0) / GRID
     dlon = (e0 - w0) / GRID
@@ -96,6 +107,13 @@ def main() -> None:
             cn = cs + dlat
             cw = w0 + j * dlon
             ce = cw + dlon
+            # skip a cell whose center + 4 corners are all outside coverage
+            if covered is not None:
+                pts = [((cs + cn) / 2, (cw + ce) / 2),
+                       (cs, cw), (cs, ce), (cn, cw), (cn, ce)]
+                if not any(covered(la, lo) for la, lo in pts):
+                    print(f"  cell [{i},{j}] skip (no coverage)")
+                    continue
             els = fetch_cell(cs, cw, cn, ce)
             for el in els:
                 seen.setdefault(el["id"], el)
@@ -114,9 +132,13 @@ def main() -> None:
         area = w_m * d_m
         if area < MIN_AREA_M2:
             continue
+        clat = sum(lats) / len(lats)
+        clon = sum(lons) / len(lons)
+        if covered is not None and not covered(clat, clon):
+            continue
         out.append((
             area,
-            [round(sum(lats) / len(lats), 6), round(sum(lons) / len(lons), 6),
+            [round(clat, 6), round(clon, 6),
              round(w_m, 1), round(d_m, 1), round(levels_to_h(el.get("tags", {})), 1)],
         ))
 

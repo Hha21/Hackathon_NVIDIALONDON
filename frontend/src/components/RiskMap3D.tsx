@@ -67,18 +67,22 @@ function project(lat: number, lon: number, W: number, H: number) {
 // physical model block instead of a floating sheet.
 function Pedestal({ W, H }: { W: number; H: number }) {
   const DEPTH = 2.2;
-  const GAP = 0.02; // keep below the map plane to avoid z-fighting
   const LIP = 0.6; // frame overhang
+  // Distinct top faces avoid z-fighting (the flicker): the lip top sits a clear
+  // gap below the map plane (y=0), and the main block top sits below the lip top.
+  const LIP_TOP = -0.06; // gap below map plane so map/lip don't co-plane
+  const LIP_H = 0.26;
+  const BLOCK_TOP = -0.2; // strictly below LIP_TOP so the two tops never coincide
   return (
     <group>
       {/* main block */}
-      <mesh position={[0, -DEPTH / 2 - GAP, 0]}>
+      <mesh position={[0, BLOCK_TOP - DEPTH / 2, 0]}>
         <boxGeometry args={[W, DEPTH, H]} />
         <meshStandardMaterial color="#10141d" roughness={0.75} metalness={0.25} />
       </mesh>
       {/* top framing lip, slightly larger + lighter */}
-      <mesh position={[0, -0.13 - GAP, 0]}>
-        <boxGeometry args={[W + LIP, 0.26, H + LIP]} />
+      <mesh position={[0, LIP_TOP - LIP_H / 2, 0]}>
+        <boxGeometry args={[W + LIP, LIP_H, H + LIP]} />
         <meshStandardMaterial
           color="#2b3650"
           roughness={0.5}
@@ -97,7 +101,15 @@ function Basemap({ W, H }: { W: number; H: number }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
       <planeGeometry args={[W, H]} />
-      <meshBasicMaterial map={tex} toneMapped={false} />
+      {/* basemap.png is clipped to the London silhouette (transparent corners).
+          alphaTest hides them; DoubleSide so it shows from below on tilt. */}
+      <meshBasicMaterial
+        map={tex}
+        toneMapped={false}
+        transparent
+        alphaTest={0.5}
+        side={THREE.DoubleSide}
+      />
     </mesh>
   );
 }

@@ -26,16 +26,16 @@ Docker containers (`essential-apps-backend`, `essential-apps-web`) squat on **:8
 - A's forecast schema has **per-ward lat/lon** → if A emits all-London, every ward column auto-appears, camera re-frames to centroid, labels stay capped. **Zero frontend change.**
 - `backend/geo.py` only has 12 Lewisham wards — used **backend-only** (scenario station logic, mobile routes). Not the frontend join key.
 
-## IN PROGRESS — extend buildings to full GL + clip map non-rectangular
-User wants: buildings across the whole data area (all GL), small buildings filtered out (GPU), and the **map clipped to where data exists** (cut empty Surrey/Kent corners; map need not be rectangular).
+## DONE — extend buildings to full GL + clip map non-rectangular
+Goal: buildings across whole data area (all GL), small buildings filtered (GPU), map clipped to where data exists (cut empty Surrey/Kent corners; non-rectangular).
 
-Done so far: `backend/coverage.py` written (incident-density mask over basemap bounds; `coverage_grid()` + `is_covered_fn()`). **Untested.**
+- `backend/coverage.py` — incident-density mask over basemap bounds. **Tested**: 53% of frame covered, 153/180 rows non-empty.
+1. ✅ **`backend/clip_basemap.py`** — loads `basemap.png`, builds coverage alpha (`coverage_grid()` upscaled BILINEAR + GaussianBlur soft edge), rewrites RGBA. Ran → basemap now the iconic GL silhouette (verified by compositing alpha over magenta). Backup of rectangular original: `/tmp/basemap_rect_backup.png`.
+2. ✅ **`backend/build_buildings.py`** — added `all_london` region (bbox `(51.287,-0.510,51.692,0.322)`, 8×8 grid, `MIN_AREA_M2=110`). Skips cells whose center+4 corners are all uncovered; drops buildings whose centroid isn't covered (`coverage.is_covered_fn`). `MAX_BUILDINGS=380k` cap kept. Rebuild RAN (see status below). Backup of extended set: `/tmp/buildings_extended_backup.json`.
+3. ✅ **`RiskMap3D.tsx` `Basemap`** — material now `transparent` + `alphaTest={0.5}` + `side={THREE.DoubleSide}` → clipped basemap shows irregular silhouette. Pedestal still rectangular slab (acceptable "mounted board").
+4. **Verify remaining**: check FPS with new instance count in browser; confirm dev serves new RGBA basemap + buildings.json. (Alignment uses same projection — unchanged.)
 
-Remaining steps:
-1. **`backend/clip_basemap.py`** (new): load `basemap.png`, build coverage alpha from `coverage.coverage_grid()` (resize grid → basemap WxH, bilinear for soft edge), write RGBA `basemap.png` transparent outside the mask. Run it after `build_map_tile.py`.
-2. **`backend/build_buildings.py`**: add an `all_london` region (bbox = GL data extent ~ `(51.287,-0.510,51.692,0.322)`), grid e.g. 8×8, **skip cells with no coverage** (use `coverage.is_covered_fn`), raise `MIN_AREA_M2` (~100–120 to cut count), drop buildings whose centroid isn't covered, keep `MAX_BUILDINGS` cap (~400k, largest by area). Run (long; background it — Overpass 429s auto-retry).
-3. **Frontend `RiskMap3D.tsx` `Basemap`**: material needs `transparent` + `alphaTest={0.5}` + `side={THREE.DoubleSide}` so the clipped (transparent) basemap shows the irregular silhouette. Verify pedestal still looks OK under a non-rectangular map (it's a rectangular slab — acceptable as a "mounted board", or shrink/clip later).
-4. Verify: overlay sample buildings on basemap (PIL) to confirm alignment; check FPS with ~400k instances; confirm dev serves new files.
+Note: `nohup python` output is block-buffered → `/tmp/build_buildings.log` stays empty until flush/exit. Use `-u` or wait for process exit.
 
 Regen commands:
 ```
