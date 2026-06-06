@@ -144,22 +144,22 @@ Rather than predicting individual fires (which is noise), the model learns the *
 
 ```mermaid
 flowchart LR
-    A[LFB Open Incident Dataset<br/>2009-present, ~1.7M rows] --> B[Clean + tokenise<br/>clean.py · tokenise.py]
+    A[LFB Open Incident Dataset — 2009-present, ~1.7M rows] --> B[Clean + tokenise — clean.py · tokenise.py]
     W[Weather / Calendar / Event Context] --> B
-    L[("LIVE FEED<br/>pumps · incidents · weather<br/>EXPANSION")]:::future -.-> B
+    L[("LIVE FEED — pumps · incidents · weather — EXPANSION")]:::future -.-> B
 
-    B --> D[Token sequences + weather LUT<br/>dataset.py]
-    D --> E1[Baseline risk model<br/>generate_forecast.py]
-    D --> E2[GPT-2 causal transformer<br/>19.5M params · model.py · train_gpt2.py]
+    B --> D[Token sequences + weather LUT — dataset.py]
+    D --> E1[Baseline risk model — generate_forecast.py]
+    D --> E2[GPT-2 causal transformer — 19.5M params · model.py · train_gpt2.py]
 
-    E1 --> F[Rollout inference<br/>infer.py]
+    E1 --> F[Rollout inference — infer.py]
     E2 --> F
     F --> JSON[(outputs/forecast_24h.json)]
 
-    JSON --> H[FastAPI Backend :8008<br/>+ scenario_logic.py rule engine]
+    JSON --> H[FastAPI Backend :8008 — + scenario_logic.py rule engine]
     H --> I[Three.js Web Dashboard :5174]
     H --> J[Android Dispatch App]
-    K[Local NL/Voice Agent<br/>Nemotron + ElevenLabs] --> H
+    K[Local NL/Voice Agent — Nemotron + ElevenLabs] --> H
     J --> M[Android Intents → Maps Routing]
 
     classDef future fill:#3a1d1d,stroke:#ff7b72,color:#ffd7d2,stroke-dasharray: 4 3;
@@ -176,10 +176,10 @@ flowchart LR
     subgraph DGX["🟩 DGX Spark (GB10) — all CUDA work here"]
         direction TB
         RAW[Raw LFB CSV] --> PREP[Preprocess + tokenise]
-        PREP --> TRAIN[Train GPT-2<br/>~28 min, one-time]
-        TRAIN --> INFER[KV-cached rollout inference<br/>infer.py]
-        INFER --> JSON[(forecast_24h.json<br/>WardForecast · 24× hourly<br/>risk_score · expected_count · dominant_type)]
-        NEM[Nemotron voice brain<br/>llama.cpp + GGUF on GB10]
+        PREP --> TRAIN[Train GPT-2 — ~28 min, one-time]
+        TRAIN --> INFER[KV-cached rollout inference — infer.py]
+        INFER --> JSON[(forecast_24h.json — WardForecast · 24× hourly — risk_score · expected_count · dominant_type)]
+        NEM[Nemotron voice brain — llama.cpp + GGUF on GB10]
     end
 
     JSON -. "file on disk (no HTTP, no GPU downstream)" .-> LOADER
@@ -187,7 +187,7 @@ flowchart LR
     subgraph BE["🟦 FastAPI Backend :8008 — CPU only"]
         LOADER[loader.py · mtime hot-reload + cache]
         LOADER --> FAPI[Routes]
-        SCEN[scenario_logic.py · rule-based boosts<br/>events · weather · pump coverage]
+        SCEN[scenario_logic.py · rule-based boosts — events · weather · pump coverage]
         FAPI --- SCEN
     end
 
