@@ -410,6 +410,27 @@ flowchart LR
 
 ---
 
+## Second Spark workload — the NVIDIA Nemotron voice brain
+
+The 3D map is voice-controllable: an operator says *"show me West End"* or *"top 5 hotspots"* and
+the camera flies / risk rings light up / ward stats are spoken back. The **reasoning and
+tool-selection brain for that assistant is NVIDIA Nemotron, running locally on the same DGX Spark
+GB10** — ElevenLabs only handles speech-in/speech-out and ferries tool calls to the browser. No
+external LLM is in the loop.
+
+```
+🎙 speech → ☁️ ElevenLabs (ASR/TTS only) → 🌐 cloudflared → 🟩 DGX Spark: NVIDIA Nemotron (CUDA/NVFP4)
+                                                                   │ returns OpenAI tool_calls (SSE)
+🖥 RiskMap3D (camera fly / rings / spoken stats) ◄── client tool ──┘
+```
+
+Served with the Spark's CUDA-built `llama.cpp` (an official NVIDIA DGX Spark playbook) loading the
+pre-installed Nemotron GGUF onto the GB10; log shows `NVIDIA GB10 … BLACKWELL_NATIVE_FP4 = 1`.
+Validated end-to-end (tool-calls + ~0.4 s voice latency). **Full write-up, proof, and reproduce
+steps: [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md).**
+
+---
+
 ## Shared Data Contracts
 
 These TypeScript types are the **single source of truth** across all three tracks. Locked at Hour 2.
@@ -544,7 +565,7 @@ foresight-for-fires/
 | 1 | 0–2 | **Lock interfaces.** Agree forecast/scenario schema, routes, folders, demo district (Lewisham), demo scenario (Bonfire Night + pump shortage + high wind). B ships a fake `forecast_24h.json` so no one is blocked. |
 | 2 | 2–8 | **Parallel MVP.** A: data→baseline→forecast JSON. B: FastAPI + React + 3D surface on fake data. C: Android app on fake backend. |
 | 3 | 8–14 | **Integration.** A swaps in real forecast. B connects to real `/api/forecast` + scenario delta. C connects to real `/api/mobile/state` + scenario buttons. |
-| 4 | 14–18 | **NVIDIA/Spark depth.** A adds RAPIDS/cuDF or CUDA PyTorch or NIM `/api/ask`. B adds "Running locally on DGX Spark" status panel. C adds voice/TTS. |
+| 4 | 14–18 | **NVIDIA/Spark depth.** A adds RAPIDS/cuDF or CUDA PyTorch. B adds "Running locally on DGX Spark" status panel. C adds voice/TTS driven by an **NVIDIA Nemotron** brain on the Spark (shipped — see [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md)). |
 | 5 | 18–21 | **Polish demo path.** One scripted end-to-end run; screenshots + backup video. |
 | 6 | 21–24 | **Stability + story.** One-command startup, no crashes, pre-generated forecast fallback, `DEMO_SCRIPT.md`, README, scoring explanation. |
 
@@ -555,7 +576,7 @@ foresight-for-fires/
 | Criterion | Pts | Our story |
 |---|---|---|
 | Technical Execution & Completeness | 30 | Full local data-to-decision pipeline: raw LFB → GPU preprocessing → model training → 24h ward risk → 3D web viz → mobile dispatch. |
-| NVIDIA Ecosystem & Spark Utility | 30 | RAPIDS/cuDF preprocessing + PyTorch CUDA training + (stretch) NIM/Nemotron assistant. 128GB unified memory keeps model + geo + agent resident; operational data stays local. |
+| NVIDIA Ecosystem & Spark Utility | 30 | Two GPU workloads on one DGX Spark (GB10): (1) GPT-2 forecast trained from scratch with **PyTorch CUDA**, (2) the voice assistant's reasoning brain is **NVIDIA Nemotron** (`Nemotron-3-Nano`) served locally on the GB10 via CUDA/Blackwell-NVFP4 — see [`docs/NVIDIA_STACK.md`](docs/NVIDIA_STACK.md). 128 GB unified memory keeps model + geo + agent resident; no external LLM, operational data stays local. |
 | Value & Impact | 20 | Where to pre-position scarce standby resources when local coverage is degraded. Top-5 wards at risk, risk increase from pump commitment, recommended standby, driving incident type, confidence. |
 | Innovation & Execution | 20 | Incident history as a language; dynamic ward risk surface; scenario-conditioned planning; mobile dispatch loop; local voice assistant. |
 
@@ -583,7 +604,7 @@ foresight-for-fires/
 [ ] Scenario panel changes forecast/recommendation
 [ ] Android app displays recommendation
 [ ] Android app opens routing intent
-[ ] At least one NVIDIA component used
+[x] At least one NVIDIA component used (PyTorch-CUDA GPT-2 forecast + NVIDIA Nemotron voice brain, both on DGX Spark GB10 — see docs/NVIDIA_STACK.md)
 [ ] Spark/privacy/local-inference story is clear
 [ ] Demo can run without internet
 [ ] Backup forecast JSON exists
