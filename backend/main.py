@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.loader import forecast_available, load_forecast
 from backend.schemas import Health
-from backend.routes import forecast, scenario, mobile, ask
+from backend.routes import forecast, scenario, mobile, ask, generate
 
 app = FastAPI(title="Foresight for Fires — Backend", version="0.1.0")
 
@@ -29,6 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(forecast.router)
+app.include_router(generate.router)
 app.include_router(scenario.router)
 app.include_router(mobile.router)
 app.include_router(ask.router)

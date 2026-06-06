@@ -95,6 +95,27 @@ body {
   box-shadow: 0 0 6px rgba(255, 106, 26, 0.7);
 }
 
+/* spinner — shown while a Spark job runs */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
 /* ---------- buttons ---------- */
 .btn {
   display: inline-flex;

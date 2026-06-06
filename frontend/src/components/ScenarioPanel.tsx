@@ -21,12 +21,12 @@ type Props = {
   onForecastUpdated: () => void;
 };
 
-// Rollouts per station → total = ×102 stations. ETA from the Spark's ~no-KV-cache
-// throughput (50/station ≈ 5 min, roughly linear).
+// Rollouts per station → total = ×102 stations. ETA from the Spark's KV-cache
+// throughput (O(T)/step decode); 20/station is the infer.py default.
 const RESOLUTIONS = [
   { label: "Fast", n: 10, eta: "~1 min" },
-  { label: "Balanced", n: 25, eta: "~2–3 min" },
-  { label: "Full", n: 50, eta: "~5 min" },
+  { label: "Balanced", n: 15, eta: "~1–2 min" },
+  { label: "Full", n: 20, eta: "~2 min" },
 ];
 
 const field: React.CSSProperties = {
@@ -280,7 +280,14 @@ export default function ScenarioPanel({ onForecastUpdated }: Props) {
       </div>
 
       <button className="btn accent full" onClick={generate} disabled={running}>
-        {running ? "Generating…" : "Generate Day"}
+        {running ? (
+          <>
+            <span className="spinner" aria-hidden="true" />
+            Generating…
+          </>
+        ) : (
+          "Generate Day"
+        )}
       </button>
 
       {error && (
@@ -316,8 +323,18 @@ export default function ScenarioPanel({ onForecastUpdated }: Props) {
               fontWeight: 500,
               fontSize: 11,
               letterSpacing: "0.04em",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
+            {running && (
+              <span
+                className="spinner"
+                aria-hidden="true"
+                style={{ color: "var(--accent)", flexShrink: 0 }}
+              />
+            )}
             {job.message}
           </div>
           {job.status === "done" && (

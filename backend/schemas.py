@@ -154,3 +154,31 @@ class Health(BaseModel):
     model_loaded: bool
     forecast_available: bool
     device: str
+
+
+# ---------------------------------------------------------------------------
+# Spark forecast generation (POST /api/forecast/generate)
+# ---------------------------------------------------------------------------
+# Only the fields the GPT-2 model actually conditions on (see src/dataset.py
+# build_prefix: TEMP/RAIN/WIND buckets + DOW/HOUR/MONTH from the date). Bonfire
+# Night, pumps and incidents are NOT model inputs, so they are intentionally
+# absent here.
+class GenerateRequest(BaseModel):
+    date: Optional[str] = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    hour: int = Field(default=18, ge=0, le=23)
+    temp: Optional[float] = Field(default=None, ge=-20, le=45)   # °C
+    rain: Optional[float] = Field(default=None, ge=0, le=100)    # mm/h
+    wind: Optional[float] = Field(default=None, ge=0, le=200)    # km/h
+    n_rollouts: int = Field(default=10, ge=1, le=100)            # per station
+
+
+class GenerateJob(BaseModel):
+    job_id: str
+    status: str                          # queued | running | done | error
+    message: str = ""
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    device: Optional[str] = None
+    forecast_generated_at: Optional[str] = None
+    n_rollouts: Optional[int] = None
+    error: Optional[str] = None
