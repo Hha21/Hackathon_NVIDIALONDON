@@ -857,6 +857,23 @@ return maplibregl$1;
     });
   };
 
+  // GET /api/mobile/heatmap via the native bridge — real Spark forecast wards.
+  // Resolves to { ok:boolean, data:{forecast_from,horizon_hours,wards:[...]} }.
+  window.loadHeatmap = function () {
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function (r) { if (!done) { done = true; resolve(r); } };
+      window.__onHeatmap = function (o) {
+        try { finish({ ok: !!(o && o.ok), data: JSON.parse((o && o.raw) || "{}") }); }
+        catch (e) { finish({ ok: false, data: {} }); }
+      };
+      if (window.Android && window.Android.fetchHeatmap) {
+        window.Android.fetchHeatmap();
+        setTimeout(function () { finish({ ok: false, data: {} }); }, 12000);
+      } else { finish({ ok: false, data: {} }); }
+    });
+  };
+
   // POST /api/mobile/accept. Resolves to { ok:boolean, data:{status,routing_uri} }.
   window.acceptRecommendation = function (recId, station, unit) {
     return new Promise(function (resolve) {
@@ -896,6 +913,46 @@ return maplibregl$1;
     });
     return window.__newsPromise;
   };
+
+  // ---- Live ward data (real Spark forecast) ----------------------------------
+  // Pull the heatmap once, normalize each ward into the shape the map + globe
+  // modules expect, and publish to window.FD_WARDS (the shared source of truth).
+  // Falls back silently to the built-in demo wards if the bridge/forecast is
+  // unavailable, so the app is never blocked offline.
+  function prettyType(t) {
+    t = String(t || "").replace(/_/g, " ").trim();
+    return t ? t[0].toUpperCase() + t.slice(1) : "Incident";
+  }
+  window.FD_LIVE = false;
+  window.__loadLiveWards = function () {
+    if (window.__heatPromise) return window.__heatPromise;
+    window.__heatPromise = window.loadHeatmap().then(function (res) {
+      var wards = res && res.ok && res.data && res.data.wards;
+      if (!Array.isArray(wards) || !wards.length) return false;
+      window.FD_WARDS = wards.map(function (w) {
+        var risk = Array.isArray(w.risk) ? w.risk.slice(0, 24) : [];
+        var base = risk.length ? Math.max.apply(null, risk) : 0.5;
+        return {
+          name: w.name, lon: w.lon, lat: w.lat,
+          base: base,
+          peak: typeof w.peak_hour === "number" ? w.peak_hour : 19,
+          expected: typeof w.expected === "number" ? w.expected : 0,
+          type: prettyType(w.type),
+          risk: risk, live: true
+        };
+      });
+      window.FD_LIVE = true;
+      window.FD_HEAT_FROM = (res.data && res.data.forecast_from) || "";
+      try { console.log("FDHEAT live wards=" + window.FD_WARDS.length + " from=" + window.FD_HEAT_FROM); } catch (e) {}
+      try { window.dispatchEvent(new Event("fd-heat")); } catch (e) {}
+      try { window.__rebuildHotspots && window.__rebuildHotspots(); } catch (e) {}
+      return true;
+    });
+    return window.__heatPromise;
+  };
+  // Kick off immediately; map/globe pick it up synchronously if ready, else via
+  // the "fd-heat" event / __rebuildHotspots hook when it lands.
+  try { window.__loadLiveWards(); } catch (e) {}
 })();
 </script>
 <script>
@@ -1203,20 +1260,11 @@ return maplibregl$1;
   }
   function addHotspots(map) {
     const mgl = window.maplibregl;
-    const reg = {};
-    WARDS.forEach(w => {
-      const el = document.createElement("div");
-      el.className = "ward-marker";
-      el.innerHTML = '<div class="wm-card"><div class="wm-top"><span class="wm-dot"></span>' + '<span class="wm-name">' + w.name + '</span><span class="wm-risk"></span></div>' + '<div class="wm-sub">' + w.type + '</div></div><div class="wm-stem"></div>';
-      new mgl.Marker({
-        element: el,
-        anchor: "bottom"
-      }).setLngLat([w.lon, w.lat]).addTo(map);
-      reg[w.name] = {
-        dot: el.querySelector(".wm-dot"),
-        risk: el.querySelector(".wm-risk")
-      };
-    });
+    let reg = {};
+    let markers = [];
+    // Cap on-map pins so the live 60-ward forecast stays legible; the ranked
+    // list below the map still shows them all.
+    const wardsFor = () => ((window.FD_WARDS && window.FD_WARDS.length) ? window.FD_WARDS : WARDS).slice(0, 24);
     const paint = (name, v) => {
       const r = reg[name];
       if (!r) return;
@@ -1226,7 +1274,28 @@ return maplibregl$1;
       r.risk.textContent = v.toFixed(2);
       r.risk.style.color = c;
     };
-    WARDS.forEach(w => paint(w.name, w.base));
+    const build = () => {
+      markers.forEach(m => { try { m.remove(); } catch (e) {} });
+      markers = [];
+      reg = {};
+      wardsFor().forEach(w => {
+        const el = document.createElement("div");
+        el.className = "ward-marker";
+        el.innerHTML = '<div class="wm-card"><div class="wm-top"><span class="wm-dot"></span>' + '<span class="wm-name">' + w.name + '</span><span class="wm-risk"></span></div>' + '<div class="wm-sub">' + w.type + '</div></div><div class="wm-stem"></div>';
+        markers.push(new mgl.Marker({
+          element: el,
+          anchor: "bottom"
+        }).setLngLat([w.lon, w.lat]).addTo(map));
+        reg[w.name] = {
+          dot: el.querySelector(".wm-dot"),
+          risk: el.querySelector(".wm-risk")
+        };
+      });
+      wardsFor().forEach(w => paint(w.name, w.base));
+    };
+    build();
+    // Re-render markers when the live forecast lands after the map (race-safe).
+    window.__rebuildHotspots = build;
     // Keep the on-map markers in sync with the time slider (so map == ranked list).
     window.__globeUpdate = risks => {
       Object.keys(risks).forEach(n => paint(n, risks[n]));
@@ -2119,9 +2188,16 @@ return maplibregl$1;
     type: "Dwelling fire",
     expected: 1
   }];
-  const riskAt = (w, h) => Math.min(0.97, Math.max(0.05, w.base * Math.exp(-((h - w.peak) ** 2) / 18) + 0.04));
+  // Live wards (real forecast) when present, else the built-in demo set.
+  const wardSrc = () => (window.FD_WARDS && window.FD_WARDS.length) ? window.FD_WARDS : WARDS;
+  // Real forecast ships a 24-value hourly risk curve per ward; use it directly.
+  // Demo wards have no curve, so synthesize a gaussian bump around their peak.
+  const riskAt = (w, h) => {
+    if (w.risk && w.risk.length === 24) return Math.min(0.99, Math.max(0.02, w.risk[h]));
+    return Math.min(0.97, Math.max(0.05, w.base * Math.exp(-((h - w.peak) ** 2) / 18) + 0.04));
+  };
   const fmtH = h => String(h).padStart(2, "0") + ":00";
-  const coordsOf = name => (window.FD_WARDS || []).find(x => x.name === name);
+  const coordsOf = name => wardSrc().find(x => x.name === name);
   function Scrubber({
     hour,
     setHour,
@@ -2130,7 +2206,7 @@ return maplibregl$1;
   }) {
     const totals = Array.from({
       length: 24
-    }).map((_, h) => WARDS.reduce((s, w) => s + riskAt(w, h), 0));
+    }).map((_, h) => wardSrc().reduce((s, w) => s + riskAt(w, h), 0));
     const mx = Math.max(...totals);
     const spark = totals.map((t, h) => `${h / 23 * 100},${20 - t / mx * 16}`).join(" ");
     const midRef = React.useRef();
@@ -2281,25 +2357,31 @@ return maplibregl$1;
     const [hour, setHour] = useState(19);
     const [playing, setPlaying] = useState(false);
     const [sel, setSel] = useState(null);
+    const [, bump] = useState(0); // force re-render when live forecast lands
     const ref = useRef();
     useEffect(() => {
       if (!playing) return;
       ref.current = setInterval(() => setHour(h => (h + 1) % 24), 700);
       return () => clearInterval(ref.current);
     }, [playing]);
-    const ranked = [...WARDS].sort((a, b) => riskAt(b, hour) - riskAt(a, hour));
+    useEffect(() => {
+      const on = () => bump(n => n + 1);
+      window.addEventListener("fd-heat", on);
+      return () => window.removeEventListener("fd-heat", on);
+    }, []);
+    const ranked = [...wardSrc()].sort((a, b) => riskAt(b, hour) - riskAt(a, hour));
 
     // Keep the on-map markers + camera in sync with the selected hour.
     useEffect(() => {
       const risks = {};
-      WARDS.forEach(w => {
+      wardSrc().forEach(w => {
         risks[w.name] = riskAt(w, hour);
       });
       if (window.__globeUpdate) window.__globeUpdate(risks);
       const top = ranked[0],
         c = top && coordsOf(top.name);
       if (c && window.__globeFocus) window.__globeFocus(c.lon, c.lat);
-    }, [hour]);
+    }, [hour, ranked.length]);
     return /*#__PURE__*/React.createElement("div", {
       className: "view"
     }, /*#__PURE__*/React.createElement("div", {

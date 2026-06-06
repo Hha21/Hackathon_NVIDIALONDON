@@ -16,6 +16,8 @@ from backend.loader import forecast_available, load_forecast
 from backend.schemas import (
     AcceptRequest,
     AcceptResponse,
+    MobileHeatmap,
+    MobileHeatWard,
     MobileIncident,
     MobileRecommendation,
     MobileState,
@@ -26,6 +28,9 @@ router = APIRouter(prefix="/api/mobile", tags=["mobile"])
 # Window used to pick the "next risk spike" ward for the recommendation.
 _LOOKAHEAD_START = 1
 _LOOKAHEAD_END = 6
+
+# How many of the highest-risk wards to surface on the mobile globe.
+_HEATMAP_TOP_N = 60
 
 
 def _static_state(station: str) -> MobileState:
@@ -111,6 +116,49 @@ def get_state(station: str = "Lewisham") -> MobileState:
                 ),
             )
         ],
+    )
+
+
+@router.get("/heatmap", response_model=MobileHeatmap)
+def get_heatmap(top: int = _HEATMAP_TOP_N) -> MobileHeatmap:
+    """Top-risk wards with their full 24h risk curves, for the mobile globe.
+
+    Returns the `top` wards ranked by peak hourly risk so the phone renders the
+    real Spark forecast instead of hardcoded demo wards. Empty list if no
+    forecast file is present (app falls back to its built-in demo data)."""
+    if not forecast_available():
+        return MobileHeatmap(forecast_from="", horizon_hours=24, wards=[])
+
+    data = load_forecast()
+    wards = data.get("wards", [])
+
+    def peak(w: dict) -> float:
+        return max((h["risk_score"] for h in w["hourly"]), default=0.0)
+
+    ranked = sorted(wards, key=peak, reverse=True)[: max(1, top)]
+
+    out: list[MobileHeatWard] = []
+    for w in ranked:
+        hourly = sorted(w["hourly"], key=lambda h: h["hour"])
+        risk = [round(h["risk_score"], 4) for h in hourly]
+        peak_h = max(hourly, key=lambda h: h["risk_score"])
+        out.append(
+            MobileHeatWard(
+                ward_id=w["ward_id"],
+                name=w["ward_name"],
+                lat=w["lat"],
+                lon=w["lon"],
+                peak_hour=peak_h["hour"],
+                type=peak_h["dominant_type"],
+                expected=round(peak_h.get("expected_count", 0.0), 2),
+                risk=risk,
+            )
+        )
+
+    return MobileHeatmap(
+        forecast_from=data.get("forecast_from", ""),
+        horizon_hours=data.get("horizon_hours", 24),
+        wards=out,
     )
 
 

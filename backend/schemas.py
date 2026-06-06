@@ -115,6 +115,23 @@ class MobileState(BaseModel):
     recommendations: list[MobileRecommendation]
 
 
+class MobileHeatWard(BaseModel):
+    ward_id: str
+    name: str
+    lat: float
+    lon: float
+    peak_hour: int
+    type: str  # dominant incident type at the ward's peak hour
+    expected: float  # expected incident count at the peak hour
+    risk: list[float]  # 24 hourly risk scores (index == hour)
+
+
+class MobileHeatmap(BaseModel):
+    forecast_from: str
+    horizon_hours: int
+    wards: list[MobileHeatWard]
+
+
 class AcceptRequest(BaseModel):
     recommendation_id: str
     station: str

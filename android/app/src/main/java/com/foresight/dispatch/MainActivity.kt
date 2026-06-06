@@ -173,6 +173,23 @@ class WebBridge(private val activity: Activity, private val web: WebView) {
         }.start()
     }
 
+    /** GET /api/mobile/heatmap → hand the raw JSON back via window.__onHeatmap({ok,raw}). */
+    @JavascriptInterface
+    fun fetchHeatmap() {
+        Thread {
+            val raw = tryRequest { base ->
+                okhttp3.Request.Builder()
+                    .url(base + "api/mobile/heatmap")
+                    .build()
+            }
+            val payload = org.json.JSONObject()
+                .put("ok", raw != null)
+                .put("raw", raw ?: "{}")
+                .toString()
+            activity.runOnUiThread { web.evaluateJavascript("window.__onHeatmap && window.__onHeatmap($payload)", null) }
+        }.start()
+    }
+
     /** POST /api/mobile/accept → hand the raw JSON back via window.__onAccept({ok,raw}). */
     @JavascriptInterface
     fun acceptRec(recommendationId: String, station: String, unit: String) {
