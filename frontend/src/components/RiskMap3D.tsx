@@ -9,8 +9,16 @@
 //   - `riskOverride` (scenario scenario_risk by ward_id) replaces baseline risk.
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
-import { OrbitControls, Html, Text, Billboard, Environment, Lightformer } from "@react-three/drei";
-import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import {
+  OrbitControls,
+  Html,
+  Text,
+  Billboard,
+  Environment,
+  Lightformer,
+  ContactShadows,
+} from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
 import type { WardForecast } from "../api";
 import bounds from "../basemap_bounds.json";
@@ -25,6 +33,7 @@ const LABEL_TOP_N = 12; // only the N highest-risk wards get a standing label
 const BLDG_EXAG = 5; // height exaggeration so real buildings read as a skyline
 const BLDG_MIN_W = 0.07; // min footprint in scene units (avoid needle-thin spikes)
 const BLDG_MAX_H_M = 42; // clamp outlier heights (kills the random black needles)
+const PED_MARGIN = 60; // pedestal overhang beyond the map on every side (units)
 
 // blue (low) -> yellow (mid) -> red (high)
 function riskColor(r: number): string {
@@ -65,33 +74,21 @@ function project(lat: number, lon: number, W: number, H: number) {
 
 // Pedestal: a slab + framing lip beneath the basemap so the city sits on a
 // physical model block instead of a floating sheet.
+// ONE pedestal, ONE colour. A single deep block whose top sits just below the
+// map plane, extended well past the city silhouette so tilting never reveals the
+// void.
+const PED_TONE = "#222c42";
+
 function Pedestal({ W, H }: { W: number; H: number }) {
-  const DEPTH = 2.2;
-  const LIP = 0.6; // frame overhang
-  // Distinct top faces avoid z-fighting (the flicker): the lip top sits a clear
-  // gap below the map plane (y=0), and the main block top sits below the lip top.
-  const LIP_TOP = -0.06; // gap below map plane so map/lip don't co-plane
-  const LIP_H = 0.26;
-  const BLOCK_TOP = -0.2; // strictly below LIP_TOP so the two tops never coincide
+  const DEPTH = 8; // deep enough to read as a solid model block on tilt
+  const SW = W + PED_MARGIN * 2;
+  const SH = H + PED_MARGIN * 2;
+  const TOP = -0.08; // single top face, just below the map plane (y=0)
   return (
-    <group>
-      {/* main block */}
-      <mesh position={[0, BLOCK_TOP - DEPTH / 2, 0]}>
-        <boxGeometry args={[W, DEPTH, H]} />
-        <meshStandardMaterial color="#10141d" roughness={0.75} metalness={0.25} />
-      </mesh>
-      {/* top framing lip, slightly larger + lighter */}
-      <mesh position={[0, LIP_TOP - LIP_H / 2, 0]}>
-        <boxGeometry args={[W + LIP, LIP_H, H + LIP]} />
-        <meshStandardMaterial
-          color="#2b3650"
-          roughness={0.5}
-          metalness={0.35}
-          emissive="#1b2740"
-          emissiveIntensity={0.4}
-        />
-      </mesh>
-    </group>
+    <mesh position={[0, TOP - DEPTH / 2, 0]} receiveShadow>
+      <boxGeometry args={[SW, DEPTH, SH]} />
+      <meshStandardMaterial color={PED_TONE} roughness={0.62} metalness={0.3} />
+    </mesh>
   );
 }
 
@@ -106,6 +103,10 @@ function Basemap({ W, H }: { W: number; H: number }) {
       <meshBasicMaterial
         map={tex}
         toneMapped={false}
+        // color > 1 multiplies the texture (HDR) — lifts the muddy basemap
+        // without rebuilding the PNG. Basic material ignores lights, so this is
+        // the only ground-brightness lever short of regenerating the asset.
+        color={new THREE.Color(1.55, 1.55, 1.6)}
         transparent
         alphaTest={0.5}
         side={THREE.DoubleSide}
@@ -406,14 +407,25 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
   return (
     <Canvas
       camera={{ position: [center.x, 34, center.z + 42], fov: 45 }}
-      style={{ width: "100%", height: "100%", background: "#0d1117" }}
+      gl={{
+        alpha: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.15,
+      }}
+      style={{
+        width: "100%",
+        height: "100%",
+        // radial gradient backdrop (CSS) instead of a flat black fill — softer,
+        // reads as ambient haze around the model. gl alpha lets it show through.
+        background:
+          "radial-gradient(120% 100% at 50% 12%, #1b2436 0%, #0c111c 45%, #05070e 100%)",
+      }}
     >
-      {/* night scene: dark background so the city + glowing risk columns pop */}
-      <color attach="background" args={["#05070e"]} />
-      <fog attach="fog" args={["#05070e", 140, 520]} />
-      <hemisphereLight color="#5a6b8c" groundColor="#0a0d14" intensity={0.45} />
-      <ambientLight intensity={0.18} />
-      <directionalLight position={[-40, 45, -25]} intensity={0.75} color="#ffd9a8" />
+      {/* fog matches the backdrop so the extended pedestal fades to it at range */}
+      <fog attach="fog" args={["#0c111c", 160, 480]} />
+      <hemisphereLight color="#5a6b8c" groundColor="#0a0d14" intensity={0.55} />
+      <ambientLight intensity={0.28} />
+      <directionalLight position={[-40, 45, -25]} intensity={1.1} color="#ffd9a8" />
       <directionalLight position={[30, 25, 35]} intensity={0.3} color="#7fa8ff" />
       {/* image-based lighting from custom lightformers (offline, no HDR fetch) */}
       <Environment resolution={256} frames={1} background={false}>
@@ -426,6 +438,17 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
         <Basemap W={W} H={H} />
       </Suspense>
       <Buildings W={W} H={H} s={s} />
+      {/* ground buildings + columns onto the map. Scoped to the focus cluster so
+          the shadow map keeps resolution (not stretched over all of London). */}
+      <ContactShadows
+        position={[center.x, 0.03, center.z]}
+        scale={120}
+        resolution={1024}
+        blur={2.6}
+        opacity={0.55}
+        far={22}
+        color="#01030a"
+      />
       {placed.map((p) => (
         <RiskColumn
           key={p.ward.ward_id}
@@ -448,21 +471,24 @@ export default function RiskMap3D({ wards, hour, riskOverride }: Props) {
         autoRotate
         autoRotateSpeed={0.45}
         minDistance={6}
-        maxDistance={420}
+        maxDistance={200}
         enablePan
         enableZoom
         enableRotate
-        maxPolarAngle={Math.PI / 2.05}
+        // keep the camera looking down: ~68° max tilt so the horizon/sky (the
+        // black background) never enters the frame — only the pedestal fills it.
+        maxPolarAngle={Math.PI / 2.65}
         onStart={onInteractStart}
         onEnd={onInteractEnd}
       />
       <EffectComposer>
         <Bloom
-          intensity={1.1}
-          luminanceThreshold={0.35}
+          intensity={0.9}
+          luminanceThreshold={0.5}
           luminanceSmoothing={0.25}
           mipmapBlur
         />
+        <Vignette eskil={false} offset={0.3} darkness={0.7} />
       </EffectComposer>
     </Canvas>
   );
