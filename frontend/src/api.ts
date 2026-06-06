@@ -71,9 +71,22 @@ export type AskResponse = {
   supporting_forecast_ids: string[];
 };
 
+export type Health = {
+  status: string;
+  model_loaded: boolean;
+  forecast_available: boolean;
+  device: string;
+};
+
 // ---- Calls ----
+export async function getHealth(): Promise<Health> {
+  const r = await fetch(`${BASE}/health`);
+  if (!r.ok) throw new Error(`health ${r.status}`);
+  return r.json();
+}
+
 export async function getForecast(
-  district = "Lewisham",
+  district = "Greater London",
   incidentType = "all"
 ): Promise<ForecastResponse> {
   const r = await fetch(

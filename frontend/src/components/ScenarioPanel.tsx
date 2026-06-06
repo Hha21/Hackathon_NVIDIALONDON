@@ -25,7 +25,7 @@ const INCIDENT_TYPES = [
   "dwelling_fire",
   "outdoor_fire",
   "false_alarm",
-  "road_traffic_collision",
+  "special_service",
 ];
 
 type Props = {

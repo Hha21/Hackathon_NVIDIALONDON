@@ -5,19 +5,20 @@
 //   backend is unreachable it falls back to a bundled forecast so the surface
 //   always renders (offline demo safety).
 import { useEffect, useMemo, useState } from "react";
-import { getForecast } from "./api";
-import type { ForecastResponse, ScenarioResponse } from "./api";
+import { getForecast, getHealth } from "./api";
+import type { ForecastResponse, Health, ScenarioResponse } from "./api";
 import RiskMap3D from "./components/RiskMap3D";
 import TimelineScrubber from "./components/TimelineScrubber";
 import ScenarioPanel from "./components/ScenarioPanel";
 import fallbackForecast from "./fallback_forecast.json";
 
+// Matches the dominant_type values emitted by Person A's model forecast.
 const INCIDENT_FILTER = [
   "all",
   "dwelling_fire",
   "outdoor_fire",
   "false_alarm",
-  "road_traffic_collision",
+  "special_service",
 ];
 
 export default function App() {
@@ -26,10 +27,22 @@ export default function App() {
   const [incidentType, setIncidentType] = useState("all");
   const [scenario, setScenario] = useState<ScenarioResponse | null>(null);
   const [offline, setOffline] = useState(false);
+  const [health, setHealth] = useState<Health | null>(null);
+
+  // Spark inference status (device + model_loaded) for the NVIDIA panel.
+  useEffect(() => {
+    let alive = true;
+    getHealth()
+      .then((h) => alive && setHealth(h))
+      .catch(() => alive && setHealth(null));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    getForecast("Lewisham", incidentType)
+    getForecast("Greater London", incidentType)
       .then((f) => {
         if (!alive) return;
         setForecast(f);
@@ -91,10 +104,18 @@ export default function App() {
         <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
           🔥 Foresight for Fires{" "}
           <span style={{ color: "#8b949e", fontWeight: 400, fontSize: 15 }}>
-            — {forecast?.district ?? "Lewisham"} risk surface
+            — {forecast?.district ?? "Greater London"} risk surface
           </span>
         </h1>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {health?.model_loaded && (
+            <span
+              style={{ ...chip, color: "#58a6ff", borderColor: "#58a6ff" }}
+              title={`device: ${health.device}`}
+            >
+              ⚡ Spark inference · {health.device}
+            </span>
+          )}
           {offline && (
             <span style={{ ...chip, color: "#d29922", borderColor: "#d29922" }}>
               offline · bundled data
