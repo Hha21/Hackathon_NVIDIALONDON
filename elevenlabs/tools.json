@@ -1,0 +1,19 @@
+{
+    "tools": [
+        {
+            "type": "client",
+            "config": "tool_configs/focus_ward.json",
+            "id": "tool_4601ktesyr84ern8dmwyca4w0xmv"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/reset_view.json",
+            "id": "tool_8201ktesys06exbsyjfccdpwjqcb"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/highlight_risk.json",
+            "id": "tool_1901ktesyst3edptv7t0mhpa9tb3"
+        }
+    ]
+}

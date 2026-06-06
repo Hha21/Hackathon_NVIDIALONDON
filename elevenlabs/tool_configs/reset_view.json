@@ -1,0 +1,15 @@
+{
+    "name": "reset_view",
+    "description": "Reset the map camera back to the full Lewisham overview and clear any highlighted ward borders. Call when the operator asks to zoom out, go back, reset, or see everything.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {}
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

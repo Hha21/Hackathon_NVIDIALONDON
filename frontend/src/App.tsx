@@ -4,12 +4,13 @@
 //   when a scenario is run its scenario_risk overlays the surface. If the
 //   backend is unreachable it falls back to a bundled forecast so the surface
 //   always renders (offline demo safety).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getForecast, getHealth } from "./api";
 import type { ForecastResponse, Health } from "./api";
 import RiskMap3D from "./components/RiskMap3D";
 import TimelineScrubber from "./components/TimelineScrubber";
 import ScenarioPanel from "./components/ScenarioPanel";
+import VoiceAgent from "./components/VoiceAgent";
 import fallbackForecast from "./fallback_forecast.json";
 
 // Matches the dominant_type values emitted by Person A's model forecast.
@@ -62,6 +63,41 @@ export default function App() {
 
   // The scenario panel calls this once a Spark regen lands the new forecast JSON.
   const onForecastUpdated = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // ---- Voice control (ElevenLabs client tools -> map camera + borders) ----
+  const [focusWardId, setFocusWardId] = useState<string | null>(null);
+  const [highlightSet, setHighlightSet] = useState<Set<string> | undefined>(undefined);
+
+  const wardsLite = useMemo(
+    () => (forecast?.wards ?? []).map((w) => ({ ward_id: w.ward_id, ward_name: w.ward_name })),
+    [forecast]
+  );
+
+  const onFocus = useCallback((wardId: string) => {
+    setHighlightSet(undefined);
+    setFocusWardId(wardId);
+  }, []);
+
+  const onReset = useCallback(() => {
+    setFocusWardId(null);
+    setHighlightSet(undefined);
+  }, []);
+
+  // Voice "highlight_risk": border-glow every ward at/above the threshold (at the
+  // hour currently on the scrubber).
+  const onHighlight = useCallback(
+    (minRisk: number) => {
+      if (!forecast) return;
+      const s = new Set<string>();
+      for (const w of forecast.wards) {
+        const he = w.hourly.find((h) => h.hour === hour) ?? w.hourly[0];
+        if ((he?.risk_score ?? 0) >= minRisk) s.add(w.ward_id);
+      }
+      setFocusWardId(null);
+      setHighlightSet(s);
+    },
+    [forecast, hour]
+  );
 
   return (
     <div
@@ -136,7 +172,12 @@ export default function App() {
       {/* 3D surface */}
       <main style={{ gridArea: "map", position: "relative", minHeight: 0, minWidth: 0 }}>
         {forecast ? (
-          <RiskMap3D wards={forecast.wards} hour={hour} />
+          <RiskMap3D
+            wards={forecast.wards}
+            hour={hour}
+            focusWardId={focusWardId}
+            highlightSet={highlightSet}
+          />
         ) : (
           <div style={{ padding: 24, color: "var(--text-sec)" }} className="label">
             Loading forecast…
@@ -158,7 +199,12 @@ export default function App() {
         }}
       >
         <ScenarioPanel onForecastUpdated={onForecastUpdated} />
-        <AgentPanel />
+        <VoiceAgent
+          wards={wardsLite}
+          onFocus={onFocus}
+          onReset={onReset}
+          onHighlight={onHighlight}
+        />
       </aside>
 
       {/* scrubber */}
@@ -166,40 +212,6 @@ export default function App() {
         <TimelineScrubber hour={hour} setHour={setHour} />
       </footer>
     </div>
-  );
-}
-
-// Reserved space for the dispatch agent — wired up separately.
-function AgentPanel() {
-  return (
-    <section
-      className="panel nt-scroll"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        overflowY: "auto",
-        padding: 16,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span className="led" />
-        <span className="kicker">Dispatch Agent</span>
-      </div>
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--text-mut)",
-          textAlign: "center",
-        }}
-        className="label"
-      >
-        Agent console — coming soon
-      </div>
-    </section>
   );
 }
 

@@ -1,0 +1,21 @@
+{
+    "name": "highlight_risk",
+    "description": "Light up the borders of every ward whose predicted fire risk is at or above a threshold (0.0 to 1.0). Call when the operator asks to show hotspots, high-risk areas, or wards above a certain risk level.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "minRisk": {
+                "type": "number",
+                "description": "Minimum risk score (0.0 to 1.0). Wards at or above this value get highlighted. Default to 0.6 if the operator does not specify."
+            }
+        },
+        "required": ["minRisk"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}
