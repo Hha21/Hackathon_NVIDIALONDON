@@ -60,6 +60,8 @@ DGX Spark's official spec: local AI software stack, NIM support, 128 GB unified 
 | ONS Census 2021 LSOA tables | [ONS](https://www.ons.gov.uk) | OGL v3 |
 | LFB Bonfire/Diwali/Halloween incident records | [London Datastore](https://data.london.gov.uk/dataset/incidents-occuring-around-diwali-halloween---bonfire-night/) | OGL v3 |
 
+Contains public sector information licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+
 ---
 
 ## Team Split
