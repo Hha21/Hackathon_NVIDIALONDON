@@ -310,15 +310,30 @@ function FocusBorder({
     m.scale.set(s, s, 1);
     (m.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - t.current);
   });
+  // depthTest=false + high renderOrder => rings draw on top of the risk columns,
+  // so a ringed ward is always visible even when buildings sit in front.
   return (
     <group position={[x, 0.12, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <mesh>
+      <mesh renderOrder={999}>
         <ringGeometry args={[radius, radius * 1.18, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.95} toneMapped={false} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.95}
+          toneMapped={false}
+          depthTest={false}
+          depthWrite={false}
+        />
       </mesh>
-      <mesh ref={pulse}>
+      <mesh ref={pulse} renderOrder={999}>
         <ringGeometry args={[radius, radius * 1.08, 64]} />
-        <meshBasicMaterial color={color} transparent toneMapped={false} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          toneMapped={false}
+          depthTest={false}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
