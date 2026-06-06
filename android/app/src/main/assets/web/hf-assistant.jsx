@@ -6,7 +6,15 @@
   const { useState, useRef, useEffect } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
 
-  const detectWard = (text) => (window.FD_WARDS || []).find((w) => text.toLowerCase().includes(w.name.toLowerCase()));
+  const topWard = () => (window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base)[0];
+  // Find the ward a line of text is about: an explicit name, else "highest/hottest" intent → top ward.
+  const detectWard = (text) => {
+    const t = (text || "").toLowerCase();
+    const named = (window.FD_WARDS || []).find((w) => t.includes(w.name.toLowerCase()));
+    if (named) return named;
+    if (/highest|high[\s-]?risk|hottest|riskiest|most at risk|top ward|what'?s hot|hot right now|where.*(go|risk)|current.*risk/.test(t)) return topWard();
+    return null;
+  };
 
   function ResultCard({ loc, onClose, goGlobe }) {
     const route = () => window.routeByName(loc.name);
@@ -39,7 +47,8 @@
     const convRef = useRef(null);
     const pending = useRef(null);
 
-    const addTurn = (who, t) => { if (t) setTurns((p) => [...p, { who, text: t }]); };
+    const showCardFor = (t) => { const w = detectWard(t); if (w) { setLoc(w); setShowResult(true); } };
+    const addTurn = (who, t) => { if (t) { setTurns((p) => [...p, { who, text: t }]); showCardFor(t); } };
     useEffect(() => () => { try { convRef.current && convRef.current.endSession(); } catch (e) {} }, []);
 
     const orbState = mode === "speaking" ? "speaking" : mode === "listening" ? "listening" : mode === "thinking" || mode === "connecting" ? "thinking" : "idle";
@@ -56,6 +65,20 @@
         const conv = await window.ElevenConversation.startSession({
           agentId: AGENT_ID,
           connectionType: "webrtc",
+          // Client tools the agent can call to drive the officer's map card.
+          clientTools: {
+            get_hotspots: () => JSON.stringify(
+              (window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base)
+                .map((w) => ({ ward: w.name, dominant_type: w.type, risk: Number(w.base.toFixed(2)) }))
+            ),
+            show_location: (p) => {
+              const name = p && (p.ward || p.location || p.name || p.place || p.ward_name);
+              let w = name ? (window.FD_WARDS || []).find((x) => String(name).toLowerCase().includes(x.name.toLowerCase())) : null;
+              if (!w) w = topWard();
+              if (w) { setLoc(w); setShowResult(true); }
+              return "Showing " + (w ? w.name : "the location") + " on the officer's map.";
+            },
+          },
           onConnect: () => { setMode("listening"); if (pending.current) { const q = pending.current; pending.current = null; addTurn("you", q); try { conv.sendUserMessage && conv.sendUserMessage(q); } catch (e) {} } },
           onDisconnect: () => setMode("idle"),
           onError: (e) => { console.log("EL error", e); },
@@ -72,8 +95,8 @@
               if (last && last.who === who && last.text === t) return p;     // dedupe repeats
               return [...p, { who, text: t }];
             });
-            // When the agent names a location, show its card (every reply with a location).
-            if (who === "ai") { const w = detectWard(t); if (w) { setLoc(w); setShowResult(true); } }
+            // Show a location card whenever a ward is named or implied (by either side).
+            const w = detectWard(t); if (w) { setLoc(w); setShowResult(true); }
           },
         });
         convRef.current = conv;
@@ -106,7 +129,6 @@
             </div>
           ) : (
             <div className="asst-convo">
-              <div className="asst-status asst-status-live">{caption}</div>
               {showResult && loc ? <ResultCard loc={loc} onClose={() => setShowResult(false)} goGlobe={goGlobe} /> : null}
               <div className="transcript">
                 {turns.map((t, i) => <div key={i} className={"bubble " + t.who}>{t.text}</div>)}

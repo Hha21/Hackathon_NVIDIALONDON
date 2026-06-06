@@ -9,7 +9,15 @@
     useEffect
   } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
-  const detectWard = text => (window.FD_WARDS || []).find(w => text.toLowerCase().includes(w.name.toLowerCase()));
+  const topWard = () => (window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base)[0];
+  // Find the ward a line of text is about: an explicit name, else "highest/hottest" intent → top ward.
+  const detectWard = text => {
+    const t = (text || "").toLowerCase();
+    const named = (window.FD_WARDS || []).find(w => t.includes(w.name.toLowerCase()));
+    if (named) return named;
+    if (/highest|high[\s-]?risk|hottest|riskiest|most at risk|top ward|what'?s hot|hot right now|where.*(go|risk)|current.*risk/.test(t)) return topWard();
+    return null;
+  };
   function ResultCard({
     loc,
     onClose,
@@ -77,11 +85,21 @@
     const [text, setText] = useState("");
     const convRef = useRef(null);
     const pending = useRef(null);
+    const showCardFor = t => {
+      const w = detectWard(t);
+      if (w) {
+        setLoc(w);
+        setShowResult(true);
+      }
+    };
     const addTurn = (who, t) => {
-      if (t) setTurns(p => [...p, {
-        who,
-        text: t
-      }]);
+      if (t) {
+        setTurns(p => [...p, {
+          who,
+          text: t
+        }]);
+        showCardFor(t);
+      }
     };
     useEffect(() => () => {
       try {
@@ -114,6 +132,24 @@
         const conv = await window.ElevenConversation.startSession({
           agentId: AGENT_ID,
           connectionType: "webrtc",
+          // Client tools the agent can call to drive the officer's map card.
+          clientTools: {
+            get_hotspots: () => JSON.stringify((window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base).map(w => ({
+              ward: w.name,
+              dominant_type: w.type,
+              risk: Number(w.base.toFixed(2))
+            }))),
+            show_location: p => {
+              const name = p && (p.ward || p.location || p.name || p.place || p.ward_name);
+              let w = name ? (window.FD_WARDS || []).find(x => String(name).toLowerCase().includes(x.name.toLowerCase())) : null;
+              if (!w) w = topWard();
+              if (w) {
+                setLoc(w);
+                setShowResult(true);
+              }
+              return "Showing " + (w ? w.name : "the location") + " on the officer's map.";
+            }
+          },
           onConnect: () => {
             setMode("listening");
             if (pending.current) {
@@ -148,13 +184,11 @@
                 text: t
               }];
             });
-            // When the agent names a location, show its card (every reply with a location).
-            if (who === "ai") {
-              const w = detectWard(t);
-              if (w) {
-                setLoc(w);
-                setShowResult(true);
-              }
+            // Show a location card whenever a ward is named or implied (by either side).
+            const w = detectWard(t);
+            if (w) {
+              setLoc(w);
+              setShowResult(true);
             }
           }
         });
@@ -216,9 +250,7 @@
       onClick: () => start("Risk in Lewisham tonight?")
     }, "Risk in Lewisham tonight?"))) : /*#__PURE__*/React.createElement("div", {
       className: "asst-convo"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "asst-status asst-status-live"
-    }, caption), showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
+    }, showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
       loc: loc,
       onClose: () => setShowResult(false),
       goGlobe: goGlobe

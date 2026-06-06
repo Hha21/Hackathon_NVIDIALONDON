@@ -386,9 +386,8 @@ body.no-motion .wbar { animation: none; }
 .asst-body { position: absolute; top: 0; left: 0; right: 0; bottom: 156px; overflow-y: auto; z-index: 1; padding: 0 18px; }
 .asst-body::-webkit-scrollbar { display: none; }
 .asst-idle { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
-.asst-convo { padding: 58px 0 12px; }
+.asst-convo { padding: 18px 0 12px; }
 .asst-status { text-align: center; color: var(--text-sec); font-size: 13px; margin-bottom: 12px; font-family: var(--font-disp); }
-.asst-status-live { position: sticky; top: 0; z-index: 2; padding: 8px 0 10px; margin: 0 0 8px; letter-spacing: .14em; text-transform: uppercase; font-size: 11px; color: var(--ember); background: linear-gradient(180deg, var(--bg-base) 60%, transparent); }
 .asst-dock { position: absolute; left: 0; right: 0; bottom: 104px; z-index: 48; display: flex; justify-content: center; padding: 0 22px; }
 .asst-controls { display: flex; align-items: center; gap: 30px; }
 .asst-spacer { width: 48px; height: 48px; display: inline-block; }
@@ -428,6 +427,16 @@ body { font-family: var(--font-body); }
 /* ---------- bigger globe map ---------- */
 .globe-map { height: 68vh !important; }
 .globe-sheet { top: 64vh !important; }
+
+/* ---------- station picker ---------- */
+.station-pick { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; color: var(--text-pri); }
+.station-chev { color: var(--text-mut); flex: 0 0 auto; }
+.station-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(6,7,9,.55); backdrop-filter: blur(3px); display: flex; align-items: flex-end; }
+.station-sheet { width: 100%; border-radius: 26px 26px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); animation: sheetUp .22s ease; }
+@keyframes sheetUp { from { transform: translateY(20px); opacity: .4; } to { transform: translateY(0); opacity: 1; } }
+.station-opt { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 15px 16px; margin-top: 8px; border-radius: 16px; border: 1px solid var(--glass-stroke); background: rgba(255,255,255,.04); color: var(--text-pri); font-family: var(--font-body); font-size: 16px; cursor: pointer; }
+.station-opt.on { border-color: var(--ember); background: rgba(255,106,26,.10); color: var(--text-pri); }
+.station-tick { color: var(--ember); font-weight: 700; }
 
 /* a touch more letter-spacing on body text */
 body { letter-spacing: 0.02em; }
@@ -1897,13 +1906,16 @@ return maplibregl$1;
       className: "news-chev"
     }, "\u203A"))));
   }
+  const STATIONS = ["Lewisham", "New Cross", "Deptford", "Greenwich", "Peckham", "Forest Hill", "Old Kent Road"];
   function Station({
     goGlobe
   }) {
+    const [station, setStation] = useState("Lewisham");
+    const [picking, setPicking] = useState(false);
     const [info, setInfo] = useState(DEMO);
     useEffect(() => {
       let alive = true;
-      window.loadState("Lewisham").then(({
+      window.loadState(station).then(({
         ok,
         data
       }) => {
@@ -1914,7 +1926,7 @@ return maplibregl$1;
           const m = /risk\s+([0-9.]+)/i.exec(r.reason || "");
           setInfo({
             live: true,
-            station: data.station || "Lewisham",
+            station: data.station || station,
             pumps: typeof data.available_pumps === "number" ? data.available_pumps : 1,
             crew: 5,
             // not in the mobile contract; kept static
@@ -1928,13 +1940,17 @@ return maplibregl$1;
             }
           });
         } else {
+          setInfo({
+            ...DEMO,
+            station
+          }); // keep the chosen station label even offline
           window.toast("Live data unavailable — showing demo data");
         }
       });
       return () => {
         alive = false;
       };
-    }, []);
+    }, [station]);
     return /*#__PURE__*/React.createElement("div", {
       className: "view"
     }, /*#__PURE__*/React.createElement(Hero, null), /*#__PURE__*/React.createElement("div", {
@@ -1961,12 +1977,27 @@ return maplibregl$1;
         alignItems: "center",
         justifyContent: "space-between"
       }
-    }, /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "station-pick",
+      onClick: () => setPicking(true)
+    }, /*#__PURE__*/React.createElement("span", {
       className: "display",
       style: {
         fontSize: 32
       }
-    }, info.station), /*#__PURE__*/React.createElement("span", {
+    }, info.station), /*#__PURE__*/React.createElement("svg", {
+      className: "station-chev",
+      viewBox: "0 0 24 24",
+      width: "20",
+      height: "20",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    }, /*#__PURE__*/React.createElement("path", {
+      d: "M6 9l6 6 6-6"
+    }))), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -1984,7 +2015,7 @@ return maplibregl$1;
         color: "var(--text-sec)",
         fontSize: 13
       }
-    }, "Lewisham, SE London"), /*#__PURE__*/React.createElement("div", {
+    }, "SE London"), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         gap: 10,
@@ -2006,7 +2037,7 @@ return maplibregl$1;
       }
     }), /*#__PURE__*/React.createElement(RecommendationCard, {
       info: info,
-      key: info.live ? "live" : "demo"
+      key: info.station + (info.live ? "-live" : "-demo")
     }), /*#__PURE__*/React.createElement(SecHead, {
       link: "See globe",
       onLink: goGlobe
@@ -2016,7 +2047,27 @@ return maplibregl$1;
       }
     }, /*#__PURE__*/React.createElement(ActiveNearby, null))), /*#__PURE__*/React.createElement("div", {
       className: "navspace"
-    })));
+    })), picking ? /*#__PURE__*/React.createElement("div", {
+      className: "station-scrim",
+      onClick: () => setPicking(false)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "station-sheet glass",
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "label",
+      style: {
+        marginBottom: 10
+      }
+    }, "Select station"), STATIONS.map(s => /*#__PURE__*/React.createElement("button", {
+      key: s,
+      className: "station-opt" + (s === info.station ? " on" : ""),
+      onClick: () => {
+        setStation(s);
+        setPicking(false);
+      }
+    }, /*#__PURE__*/React.createElement("span", null, s), s === info.station ? /*#__PURE__*/React.createElement("span", {
+      className: "station-tick"
+    }, "\u2713") : null)))) : null);
   }
   window.Station = Station;
 })();</script>
@@ -2337,7 +2388,15 @@ return maplibregl$1;
     useEffect
   } = React;
   const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
-  const detectWard = text => (window.FD_WARDS || []).find(w => text.toLowerCase().includes(w.name.toLowerCase()));
+  const topWard = () => (window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base)[0];
+  // Find the ward a line of text is about: an explicit name, else "highest/hottest" intent → top ward.
+  const detectWard = text => {
+    const t = (text || "").toLowerCase();
+    const named = (window.FD_WARDS || []).find(w => t.includes(w.name.toLowerCase()));
+    if (named) return named;
+    if (/highest|high[\s-]?risk|hottest|riskiest|most at risk|top ward|what'?s hot|hot right now|where.*(go|risk)|current.*risk/.test(t)) return topWard();
+    return null;
+  };
   function ResultCard({
     loc,
     onClose,
@@ -2405,11 +2464,21 @@ return maplibregl$1;
     const [text, setText] = useState("");
     const convRef = useRef(null);
     const pending = useRef(null);
+    const showCardFor = t => {
+      const w = detectWard(t);
+      if (w) {
+        setLoc(w);
+        setShowResult(true);
+      }
+    };
     const addTurn = (who, t) => {
-      if (t) setTurns(p => [...p, {
-        who,
-        text: t
-      }]);
+      if (t) {
+        setTurns(p => [...p, {
+          who,
+          text: t
+        }]);
+        showCardFor(t);
+      }
     };
     useEffect(() => () => {
       try {
@@ -2442,6 +2511,24 @@ return maplibregl$1;
         const conv = await window.ElevenConversation.startSession({
           agentId: AGENT_ID,
           connectionType: "webrtc",
+          // Client tools the agent can call to drive the officer's map card.
+          clientTools: {
+            get_hotspots: () => JSON.stringify((window.FD_WARDS || []).slice().sort((a, b) => b.base - a.base).map(w => ({
+              ward: w.name,
+              dominant_type: w.type,
+              risk: Number(w.base.toFixed(2))
+            }))),
+            show_location: p => {
+              const name = p && (p.ward || p.location || p.name || p.place || p.ward_name);
+              let w = name ? (window.FD_WARDS || []).find(x => String(name).toLowerCase().includes(x.name.toLowerCase())) : null;
+              if (!w) w = topWard();
+              if (w) {
+                setLoc(w);
+                setShowResult(true);
+              }
+              return "Showing " + (w ? w.name : "the location") + " on the officer's map.";
+            }
+          },
           onConnect: () => {
             setMode("listening");
             if (pending.current) {
@@ -2476,13 +2563,11 @@ return maplibregl$1;
                 text: t
               }];
             });
-            // When the agent names a location, show its card (every reply with a location).
-            if (who === "ai") {
-              const w = detectWard(t);
-              if (w) {
-                setLoc(w);
-                setShowResult(true);
-              }
+            // Show a location card whenever a ward is named or implied (by either side).
+            const w = detectWard(t);
+            if (w) {
+              setLoc(w);
+              setShowResult(true);
             }
           }
         });
@@ -2544,9 +2629,7 @@ return maplibregl$1;
       onClick: () => start("Risk in Lewisham tonight?")
     }, "Risk in Lewisham tonight?"))) : /*#__PURE__*/React.createElement("div", {
       className: "asst-convo"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "asst-status asst-status-live"
-    }, caption), showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
+    }, showResult && loc ? /*#__PURE__*/React.createElement(ResultCard, {
       loc: loc,
       onClose: () => setShowResult(false),
       goGlobe: goGlobe
