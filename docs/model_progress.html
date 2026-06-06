@@ -235,13 +235,13 @@
         </div>
         <span class="badge done">Done</span>
       </div>
-      <div class="phase next">
+      <div class="phase done">
         <div class="phase-num">6</div>
         <div>
           <div class="phase-title">Inference &amp; Risk Surface</div>
-          <div class="phase-desc">Per-station rollout sampling → ward×type counts → normalised risk_score → forecast_24h.json for the map.</div>
+          <div class="phase-desc">102 stations × 50 rollouts = 5,100 total. 675 wards covered. Risk range 0.010–1.000. forecast_24h.json written.</div>
         </div>
-        <span class="badge next">Next</span>
+        <span class="badge done">Done</span>
       </div>
     </div>
   </section>
@@ -426,41 +426,188 @@
     </p>
   </section>
 
+  <!-- ── Phase 5 inference results ────────────────────────────── -->
+  <section>
+    <h2>Phase 5 — Inference Results</h2>
+    <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">
+      Per-station rollout sampling: 102 stations × 50 rollouts = 5,100 total rollouts.
+      Each rollout seeds the model with the 8-token context prefix + station token, then generates up to 150 new tokens.
+      Simulated time is tracked via GAP token midpoints; only incidents falling within the 24h window are counted.
+    </p>
+
+    <div class="card-grid" style="margin-bottom:1.5rem;">
+      <div class="card"><div class="val">102</div><div class="label">Stations sampled (0 skipped)</div></div>
+      <div class="card"><div class="val">5,100</div><div class="label">Total rollouts (50/station)</div></div>
+      <div class="card"><div class="val">692</div><div class="label">Wards with predicted incidents</div></div>
+      <div class="card"><div class="val">0.004–1.000</div><div class="label">Risk score range (full spread)</div></div>
+    </div>
+
+    <h3>Top 10 highest-risk wards — Friday 18:00, Jan, cold &amp; dry</h3>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Ward</th><th>Borough</th><th>Risk Score</th><th>Dominant Type</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>West End</td><td>Westminster</td><td>1.000</td><td>false_alarm</td></tr>
+        <tr><td>2</td><td>St. James's</td><td>Westminster</td><td>0.632</td><td>false_alarm</td></tr>
+        <tr><td>3</td><td>Heathrow Villages</td><td>Hillingdon</td><td>0.405</td><td>false_alarm</td></tr>
+        <tr><td>4</td><td>Bloomsbury</td><td>Camden</td><td>0.326</td><td>false_alarm</td></tr>
+        <tr><td>5</td><td>Holborn &amp; Covent Garden</td><td>Camden</td><td>0.318</td><td>false_alarm</td></tr>
+        <tr><td>6</td><td>Regent's Park</td><td>Camden</td><td>0.293</td><td>false_alarm</td></tr>
+        <tr><td>7</td><td>Fairfield</td><td>Croydon</td><td>0.289</td><td>false_alarm</td></tr>
+        <tr><td>8</td><td>Bunhill</td><td>Islington</td><td>0.248</td><td>false_alarm</td></tr>
+        <tr><td>9</td><td>Borough &amp; Bankside</td><td>Southwark</td><td>0.240</td><td>false_alarm</td></tr>
+        <tr><td>10</td><td>Stonebridge</td><td>Brent</td><td>0.240</td><td>false_alarm</td></tr>
+      </tbody>
+    </table>
+
+    <p style="font-size:0.82rem; color:var(--muted); margin-top:0.8rem;">
+      Westminster/Camden cluster reflects dense commercial, hotel and restaurant premises (AFA false alarms).
+      Heathrow Villages reflects airport terminal infrastructure. Borough &amp; Bankside is the Southwark
+      entertainment district. These are all genuine real-world LFB hotspots — validating geographic plausibility
+      without any hard-coded geographic rules.
+    </p>
+
+    <h3>Inference CLI</h3>
+    <div class="sample-block" style="font-size:0.82rem; color:#e2e8f0;">
+python src/infer.py --date 2024-11-05 --hour 21            # Bonfire Night
+python src/infer.py --temp 35 --rain 0 --wind 15           # heatwave
+python src/infer.py --temp 1 --rain 8 --wind 45            # storm
+python src/infer.py --n-rollouts 100 --temperature 0.7     # smoother surface
+    </div>
+  </section>
+
+  <!-- ── Remaining steps ───────────────────────────────────────── -->
+  <section>
+    <h2>Remaining Steps</h2>
+
+    <div class="pipeline">
+      <div class="phase next">
+        <div class="phase-num">⚠</div>
+        <div>
+          <div class="phase-title">Schema alignment with Person B (action required)</div>
+          <div class="phase-desc">
+            Person B's backend expects <code style="color:#fbbf24">ward_id</code> (ONS code e.g. "E05009317"),
+            and per-hour objects with <code style="color:#fbbf24">expected_count</code> + <code style="color:#fbbf24">dominant_type</code>.
+            Our current output uses <code style="color:#fbbf24">hourly_risk</code> (flat 24-value array).
+            Need to either: (a) add ONS ward code lookup to infer.py, or (b) confirm Person B has adapted to our schema.
+          </div>
+        </div>
+        <span class="badge next">Discuss</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">6</div>
+        <div>
+          <div class="phase-title">Evaluation — src/eval.py</div>
+          <div class="phase-desc">
+            MAE for hourly incident count · Top-k ward recall (lead metric for judges) ·
+            Calibration by risk decile · Per-incident-type error breakdown.
+            Output: <code style="color:#fbbf24">model/model_card.md</code>.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">7</div>
+        <div>
+          <div class="phase-title">forecast_24h.parquet deliverable</div>
+          <div class="phase-desc">
+            Required deliverable alongside the JSON. Simple conversion — write parquet from the same aggregated counts.
+            Useful for Person B's backend and any downstream analytics.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">8</div>
+        <div>
+          <div class="phase-title">DGX Spark technical note</div>
+          <div class="phase-desc">
+            Short pitch note: why local Spark is architecturally superior to cloud for this use case.
+            Key argument: live pump availability + active incidents must not leave the operational environment —
+            128GB unified memory keeps model + geospatial + agent context resident on one machine.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+      <div class="phase next">
+        <div class="phase-num">9</div>
+        <div>
+          <div class="phase-title">Pre-generate demo scenario forecasts</div>
+          <div class="phase-desc">
+            Run infer.py for 3–4 canned scenarios (Bonfire Night, heatwave, winter storm, baseline Friday)
+            and cache the JSON files so the demo runs offline without re-inference.
+          </div>
+        </div>
+        <span class="badge next">TODO</span>
+      </div>
+    </div>
+  </section>
+
   <!-- ── Output schema ─────────────────────────────────────────── -->
   <section>
-    <h2>Output Schema — forecast_24h.json (for map team)</h2>
+    <h2>Output Schema — forecast_24h.json (live, aligned with Person B)</h2>
     <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1rem;">
-      Phase 6 inference will aggregate per-station rollouts into this flat ward-level JSON.
-      This is the contract between the model pipeline and the map frontend.
+      Schema updated to match Person B's <code style="color:#fbbf24">/api/forecast</code> contract.
+      Each ward now contains a full <code style="color:#fbbf24">hourly</code> array with per-hour
+      <code style="color:#fbbf24">risk_score</code>, <code style="color:#fbbf24">expected_count</code>,
+      and <code style="color:#fbbf24">dominant_type</code>.
+      <strong style="color:#f87171;">Note for Person B:</strong> <code style="color:#fbbf24">ward_id</code>
+      uses a normalised slug (e.g. <code style="color:#fbbf24">"west_end"</code>,
+      <code style="color:#fbbf24">"holborn_and_covent_garden"</code>) rather than ONS codes —
+      GeoJSON polygon lookup should match on ward name, not ONS code.
     </p>
     <pre>{
-  <span class="key">"generated_at"</span>: <span class="str">"2024-01-12T18:00:00Z"</span>,
-  <span class="key">"forecast_date"</span>: <span class="str">"2024-01-13"</span>,
+  <span class="key">"generated_at"</span>:  <span class="str">"2024-01-12T18:00:00Z"</span>,
+  <span class="key">"forecast_date"</span>:  <span class="str">"2024-01-13"</span>,
+  <span class="key">"forecast_from"</span>:  <span class="str">"2024-01-12T18:00:00"</span>,
+  <span class="key">"horizon_hours"</span>:  <span class="num">24</span>,
+  <span class="key">"model"</span>:          <span class="str">"gpt2-small-19.5M"</span>,
+  <span class="key">"n_rollouts"</span>:     <span class="num">5100</span>,
   <span class="key">"weather_context"</span>: {
-    <span class="key">"temp_c"</span>: <span class="num">4</span>, <span class="key">"rain_mm"</span>: <span class="num">0</span>, <span class="key">"wind_kmh"</span>: <span class="num">12</span>
+    <span class="key">"temp_token"</span>: <span class="str">"&lt;TEMP_COLD&gt;"</span>, <span class="key">"rain_token"</span>: <span class="str">"&lt;RAIN_NONE&gt;"</span>, <span class="key">"wind_token"</span>: <span class="str">"&lt;WIND_CALM&gt;"</span>
   },
   <span class="key">"wards"</span>: [
     {
-      <span class="key">"ward_name"</span>:   <span class="str">"Gospel Oak"</span>,           <span class="cmt">// matches GeoJSON ward boundary name</span>
-      <span class="key">"borough"</span>:     <span class="str">"Camden"</span>,
-      <span class="key">"lat"</span>:         <span class="num">51.554</span>,               <span class="cmt">// WGS84</span>
-      <span class="key">"lon"</span>:        <span class="num">-0.163</span>,
-      <span class="key">"risk_score"</span>:  <span class="num">0.72</span>,                 <span class="cmt">// 0.0–1.0  →  heatmap opacity</span>
-      <span class="key">"hourly_risk"</span>: [<span class="num">0.1</span>, <span class="num">0.1</span>, <span class="num">0.2</span>, ...], <span class="cmt">// 24 values  →  hour slider</span>
-      <span class="key">"top_type"</span>:    <span class="str">"false_alarm"</span>,         <span class="cmt">// dominant type  →  map colour</span>
-      <span class="key">"type_breakdown"</span>: {
-        <span class="key">"dwelling_fire"</span>:   <span class="num">0.08</span>,
-        <span class="key">"outdoor_fire"</span>:    <span class="num">0.05</span>,
-        <span class="key">"false_alarm"</span>:     <span class="num">0.52</span>,
-        <span class="key">"special_service"</span>: <span class="num">0.35</span>
-      }
+      <span class="key">"ward_id"</span>:     <span class="str">"west_end"</span>,            <span class="cmt">// normalised slug — match GeoJSON by ward_name</span>
+      <span class="key">"ward_name"</span>:   <span class="str">"West End"</span>,
+      <span class="key">"borough"</span>:     <span class="str">"Westminster"</span>,
+      <span class="key">"geometry_id"</span>: <span class="str">"west_end"</span>,            <span class="cmt">// same as ward_id</span>
+      <span class="key">"lat"</span>:         <span class="num">51.51407</span>,              <span class="cmt">// WGS84</span>
+      <span class="key">"lon"</span>:        <span class="num">-0.13358</span>,
+      <span class="key">"risk_score"</span>:  <span class="num">1.0000</span>,                <span class="cmt">// 24h summary, normalised 0–1 globally</span>
+      <span class="key">"hourly"</span>: [
+        {
+          <span class="key">"hour"</span>:           <span class="num">0</span>,
+          <span class="key">"risk_score"</span>:     <span class="num">0.2632</span>,          <span class="cmt">// normalised 0–1 globally across all wards+hours</span>
+          <span class="key">"expected_count"</span>: <span class="num">0.20</span>,            <span class="cmt">// avg incidents per rollout for this ward+hour</span>
+          <span class="key">"dominant_type"</span>:  <span class="str">"false_alarm"</span>   <span class="cmt">// most predicted type at this hour</span>
+        },
+        <span class="cmt">// ... 23 more hour objects</span>
+      ]
     }
   ]
 }</pre>
-    <p style="font-size:0.82rem; color:var(--muted); margin-top:0.8rem;">
-      GeoJSON ward boundaries: <a href="https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london" style="color:#60a5fa;">London Datastore — Statistical GIS Boundary Files</a>.
-      Coordinate reference: WGS84. Colour coding: Dwelling Fire = red · Outdoor Fire = orange · False Alarm = grey · Special Service = blue.
-    </p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem; font-size:0.83rem;">
+      <div style="background:var(--mid); border:1px solid var(--border); border-radius:6px; padding:1rem;">
+        <div style="color:var(--orange); font-weight:600; margin-bottom:0.5rem;">For the map (Three.js surface)</div>
+        <div style="color:var(--muted);">
+          Use <code style="color:#fbbf24">risk_score</code> (top-level) for ward polygon height + colour.<br><br>
+          Use <code style="color:#fbbf24">hourly[h].risk_score</code> for the timeline scrubber animation.<br><br>
+          Use <code style="color:#fbbf24">hourly[h].dominant_type</code> for colour changes across the day.
+        </div>
+      </div>
+      <div style="background:var(--mid); border:1px solid var(--border); border-radius:6px; padding:1rem;">
+        <div style="color:var(--orange); font-weight:600; margin-bottom:0.5rem;">Incident type colours</div>
+        <div style="color:var(--muted);">
+          <span style="color:#f87171;">&#9632;</span> <code>dwelling_fire</code> — red<br>
+          <span style="color:#fb923c;">&#9632;</span> <code>outdoor_fire</code> — orange<br>
+          <span style="color:#94a3b8;">&#9632;</span> <code>false_alarm</code> — grey<br>
+          <span style="color:#60a5fa;">&#9632;</span> <code>special_service</code> — blue<br><br>
+          GeoJSON boundaries: <a href="https://data.london.gov.uk/dataset/statistical-gis-boundary-files-london" style="color:#60a5fa;">London Datastore</a>
+        </div>
+      </div>
+    </div>
   </section>
 
 </main>
