@@ -39,32 +39,24 @@ export default function TimelineScrubber({ hour, setHour }: Props) {
 
   return (
     <div
+      className="panel"
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "10px 14px",
-        background: "#161b22",
-        border: "1px solid #30363d",
-        borderRadius: 10,
+        gap: 16,
+        padding: "10px 16px",
       }}
     >
       <button
+        className={`btn sm ${playing ? "ghost" : "accent"}`}
         onClick={() => setPlaying((p) => !p)}
-        style={{
-          background: "#238636",
-          color: "#fff",
-          border: "none",
-          borderRadius: 6,
-          padding: "6px 12px",
-          cursor: "pointer",
-          fontWeight: 600,
-          minWidth: 64,
-        }}
+        style={{ minWidth: 92 }}
       >
-        {playing ? "❚❚ Pause" : "▶ Play"}
+        {playing ? "Pause" : "Play"}
       </button>
+      <span className="label">Time</span>
       <input
+        className="nt-range"
         type="range"
         min={0}
         max={23}
@@ -74,15 +66,18 @@ export default function TimelineScrubber({ hour, setHour }: Props) {
           setPlaying(false);
           setHour(Number(e.target.value));
         }}
-        style={{ flex: 1 }}
+        style={{ flex: 1, "--fill": (t / 23) * 100 } as React.CSSProperties}
       />
       <span
+        className="mono"
         style={{
           fontVariantNumeric: "tabular-nums",
-          minWidth: 56,
+          minWidth: 70,
           textAlign: "right",
-          color: "#e6edf3",
+          color: "var(--text)",
           fontWeight: 600,
+          fontSize: 20,
+          letterSpacing: "0.06em",
         }}
       >
         {label}

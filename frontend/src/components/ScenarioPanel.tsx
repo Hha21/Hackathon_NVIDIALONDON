@@ -1,83 +1,89 @@
-// Step 5: scenario inputs -> POST /api/scenario -> recommendation card + delta.
-// Inputs: district, weather (rain/wind/temperature), events (Bonfire Night),
-// pump availability per station, ongoing incidents. Demo defaults preload the
-// Lewisham "Bonfire Night + pump shortage + high wind" scenario.
-import { useEffect, useState } from "react";
-import { getLiveWeather, postScenario } from "../api";
-import type { Scenario, ScenarioResponse } from "../api";
-
-const STATIONS = ["Lewisham", "Deptford", "New Cross", "Forest Hill", "Lee Green"];
-const WARDS = [
-  "Lewisham Central",
-  "Brockley",
-  "Blackheath",
-  "Deptford",
-  "Evelyn",
-  "Ladywell",
-  "Rushey Green",
-  "Telegraph Hill",
-  "Forest Hill",
-  "Sydenham",
-  "Perry Vale",
-  "Catford South",
-];
-const INCIDENT_TYPES = [
-  "dwelling_fire",
-  "outdoor_fire",
-  "false_alarm",
-  "special_service",
-];
+// Forecast generation panel: dispatch a GPT-2 rollout job to the DGX Spark.
+//
+// Every input here is something the model actually conditions on (src/dataset.py
+// build_prefix): the date -> day-of-week + month, the hour, and the temp/rain/wind
+// buckets. Operational what-ifs (bonfire, pumps, incidents) are NOT model inputs,
+// so they live elsewhere — this panel only shapes the "possible day" the model
+// generates. On completion the regenerated forecast is scp'd back and the map
+// refreshes via onForecastUpdated().
+import { useEffect, useRef, useState } from "react";
+import {
+  generateForecast,
+  getGenerateJob,
+  getLiveWeather,
+  tempBucket,
+  rainBucket,
+  windBucket,
+} from "../api";
+import type { GenerateJob } from "../api";
 
 type Props = {
-  result: ScenarioResponse | null;
-  onResult: (r: ScenarioResponse | null) => void;
+  onForecastUpdated: () => void;
 };
+
+// Rollouts per station → total = ×102 stations. ETA from the Spark's ~no-KV-cache
+// throughput (50/station ≈ 5 min, roughly linear).
+const RESOLUTIONS = [
+  { label: "Fast", n: 10, eta: "~1 min" },
+  { label: "Balanced", n: 25, eta: "~2–3 min" },
+  { label: "Full", n: 50, eta: "~5 min" },
+];
 
 const field: React.CSSProperties = {
-  background: "#0d1117",
-  color: "#e6edf3",
-  border: "1px solid #30363d",
-  borderRadius: 6,
-  padding: "5px 8px",
-  fontSize: 13,
+  background: "var(--surface-2)",
+  color: "var(--text)",
+  border: "1px solid var(--line)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#8b949e",
+  fontSize: 10,
+  color: "var(--text-sec)",
   display: "block",
-  marginBottom: 3,
+  marginBottom: 5,
+  fontWeight: 500,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+  fontFamily: "var(--font-mono)",
+};
+const bucketStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: "var(--accent)",
+  fontFamily: "var(--font-mono)",
+  fontWeight: 700,
+  letterSpacing: "0.08em",
 };
 
-export default function ScenarioPanel({ result, onResult }: Props) {
-  const [time, setTime] = useState("20:00");
-  const [wind, setWind] = useState("high");
-  const [rain, setRain] = useState("none");
-  const [temperature, setTemperature] = useState(12);
-  const [bonfire, setBonfire] = useState(true);
-  // Demo default: Lewisham station has 0 spare pumps (shortage).
-  const [pumps, setPumps] = useState<Record<string, number>>({
-    Lewisham: 0,
-    Deptford: 2,
-    "New Cross": 1,
-    "Forest Hill": 2,
-    "Lee Green": 1,
-  });
-  const [incidents, setIncidents] = useState<
-    { ward: string; type: string; pumps_committed: number }[]
-  >([{ ward: "Deptford", type: "dwelling_fire", pumps_committed: 2 }]);
-  const [busy, setBusy] = useState(false);
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export default function ScenarioPanel({ onForecastUpdated }: Props) {
+  const [date, setDate] = useState(today());
+  const [hour, setHour] = useState(18);
+  const [temp, setTemp] = useState(12); // °C
+  const [wind, setWind] = useState(25); // km/h
+  const [rain, setRain] = useState(0); // mm/h
+  const [nRollouts, setNRollouts] = useState(10);
+
+  const [job, setJob] = useState<GenerateJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wxNote, setWxNote] = useState<string | null>(null);
   const [wxBusy, setWxBusy] = useState(false);
+  const notified = useRef<string | null>(null);
+
+  const running = job?.status === "queued" || job?.status === "running";
 
   const loadLiveWeather = async () => {
     setWxBusy(true);
     setWxNote(null);
     try {
-      const w = await getLiveWeather(); // Lewisham centroid
-      setWind(w.wind);
-      setRain(w.rain);
-      setTemperature(Math.round(w.temperature));
+      const w = await getLiveWeather(); // Greater London centroid default
+      setTemp(Math.round(w.temperature));
+      setWind(Math.round(w.windKmh));
+      setRain(Math.round(w.precipMm * 10) / 10);
       setWxNote(
         `live: ${w.temperature.toFixed(0)}°C · wind ${w.windKmh.toFixed(0)} km/h · rain ${w.precipMm.toFixed(1)} mm`
       );
@@ -88,244 +94,261 @@ export default function ScenarioPanel({ result, onResult }: Props) {
     }
   };
 
-  // Pull real conditions for Lewisham on mount.
   useEffect(() => {
     loadLiveWeather();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const submit = async () => {
-    setBusy(true);
+  // Poll the running job until it finishes; refresh the map once on completion.
+  useEffect(() => {
+    if (!job || (job.status !== "running" && job.status !== "queued")) return;
+    const id = setInterval(async () => {
+      try {
+        const j = await getGenerateJob(job.job_id);
+        setJob(j);
+        if (j.status === "done" && notified.current !== j.job_id) {
+          notified.current = j.job_id;
+          onForecastUpdated();
+        }
+      } catch {
+        /* transient — keep polling */
+      }
+    }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.job_id, job?.status]);
+
+  const generate = async () => {
     setError(null);
-    const scenario: Scenario = {
-      district: "Lewisham",
-      time,
-      weather: { wind, rain, temperature },
-      events: bonfire ? ["bonfire_night"] : [],
-      pump_availability: pumps,
-      ongoing_incidents: incidents,
-    };
     try {
-      const r = await postScenario(scenario);
-      onResult(r);
+      const j = await generateForecast({
+        date,
+        hour,
+        temp,
+        rain,
+        wind,
+        n_rollouts: nRollouts,
+      });
+      setJob(j);
     } catch (e) {
       setError(String(e));
-    } finally {
-      setBusy(false);
     }
   };
 
+  const slider = (
+    label: string,
+    value: number,
+    set: (n: number) => void,
+    bucket: string,
+    min: number,
+    max: number,
+    step: number,
+    unit: string
+  ) => (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: 8,
+          marginBottom: 2,
+        }}
+      >
+        <label style={{ ...labelStyle, marginBottom: 0 }}>{label}</label>
+        <span style={bucketStyle}>
+          {value}
+          {unit} · {bucket}
+        </span>
+      </div>
+      <input
+        className="nt-range"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={running}
+        onChange={(e) => set(Number(e.target.value))}
+        style={
+          {
+            width: "100%",
+            "--fill": ((value - min) / (max - min)) * 100,
+          } as React.CSSProperties
+        }
+      />
+    </div>
+  );
+
   return (
-    <div
+    <section
+      className="panel nt-scroll"
       style={{
-        background: "#161b22",
-        border: "1px solid #30363d",
-        borderRadius: 10,
-        padding: 14,
+        padding: 16,
         display: "flex",
         flexDirection: "column",
         gap: 12,
         overflowY: "auto",
-        flex: 1,
         width: "100%",
         minHeight: 0,
       }}
     >
-      <h3 style={{ margin: 0, color: "#e6edf3" }}>Scenario</h3>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="led" />
+          <span className="kicker">Generate Forecast</span>
+        </div>
         <button
+          className="btn ghost sm"
           onClick={loadLiveWeather}
-          disabled={wxBusy}
-          style={{ ...field, cursor: wxBusy ? "default" : "pointer", flex: 1 }}
+          disabled={wxBusy || running}
         >
-          {wxBusy ? "Fetching…" : "↻ Use live weather (Lewisham)"}
+          {wxBusy ? "Syncing" : "Live Weather"}
         </button>
       </div>
-      {wxNote && <div style={{ fontSize: 11, color: "#8b949e" }}>{wxNote}</div>}
+      {wxNote && (
+        <div
+          className="mono"
+          style={{ fontSize: 10, color: "var(--text-mut)" }}
+        >
+          {wxNote}
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <div>
-          <label style={labelStyle}>Time</label>
-          <input style={field} value={time} onChange={(e) => setTime(e.target.value)} />
-        </div>
-        <div>
-          <label style={labelStyle}>Temp (°C)</label>
+          <label style={labelStyle}>Date</label>
           <input
-            style={field}
-            type="number"
-            value={temperature}
-            onChange={(e) => setTemperature(Number(e.target.value))}
+            style={{ ...field, width: "100%" }}
+            type="date"
+            value={date}
+            disabled={running}
+            onChange={(e) => setDate(e.target.value)}
           />
         </div>
         <div>
-          <label style={labelStyle}>Wind</label>
-          <select style={field} value={wind} onChange={(e) => setWind(e.target.value)}>
-            <option value="none">none</option>
-            <option value="moderate">moderate</option>
-            <option value="high">high</option>
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Rain</label>
-          <select style={field} value={rain} onChange={(e) => setRain(e.target.value)}>
-            <option value="none">none</option>
-            <option value="low">low</option>
-            <option value="heavy">heavy</option>
-          </select>
+          <label style={labelStyle}>Start Hour</label>
+          <input
+            style={{ ...field, width: "100%" }}
+            type="number"
+            min={0}
+            max={23}
+            value={hour}
+            disabled={running}
+            onChange={(e) =>
+              setHour(Math.max(0, Math.min(23, Number(e.target.value))))
+            }
+          />
         </div>
       </div>
 
-      <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={bonfire}
-          onChange={(e) => setBonfire(e.target.checked)}
-        />
-        Bonfire Night
-      </label>
+      {slider("Temperature", temp, setTemp, tempBucket(temp), -5, 35, 1, "°C")}
+      {slider("Wind", wind, setWind, windBucket(wind), 0, 80, 1, " km/h")}
+      {slider("Rain", rain, setRain, rainBucket(rain), 0, 20, 0.5, " mm/h")}
 
       <div>
-        <label style={labelStyle}>Pump availability (spare per station)</label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          {STATIONS.map((s) => (
-            <div key={s} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12, color: "#8b949e", flex: 1 }}>{s}</span>
-              <input
-                style={{ ...field, width: 48 }}
-                type="number"
-                min={0}
-                value={pumps[s] ?? 0}
-                onChange={(e) =>
-                  setPumps({ ...pumps, [s]: Number(e.target.value) })
-                }
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label style={labelStyle}>Ongoing incidents</label>
-        {incidents.map((inc, i) => (
-          <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-            <select
-              style={{ ...field, flex: 1 }}
-              value={inc.ward}
-              onChange={(e) => {
-                const next = [...incidents];
-                next[i] = { ...inc, ward: e.target.value };
-                setIncidents(next);
-              }}
-            >
-              {WARDS.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-            <select
-              style={{ ...field, flex: 1 }}
-              value={inc.type}
-              onChange={(e) => {
-                const next = [...incidents];
-                next[i] = { ...inc, type: e.target.value };
-                setIncidents(next);
-              }}
-            >
-              {INCIDENT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-            <input
-              style={{ ...field, width: 44 }}
-              type="number"
-              min={0}
-              value={inc.pumps_committed}
-              onChange={(e) => {
-                const next = [...incidents];
-                next[i] = { ...inc, pumps_committed: Number(e.target.value) };
-                setIncidents(next);
-              }}
-            />
+        <label style={labelStyle}>Resolution · Rollouts/Station</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          {RESOLUTIONS.map((r) => (
             <button
-              style={{ ...field, cursor: "pointer", color: "#f85149" }}
-              onClick={() => setIncidents(incidents.filter((_, j) => j !== i))}
+              key={r.n}
+              className={`seg${nRollouts === r.n ? " on" : ""}`}
+              disabled={running}
+              onClick={() => setNRollouts(r.n)}
             >
-              ✕
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {r.label}
+              </span>
+              <span style={{ fontSize: 9, letterSpacing: "0.06em" }}>
+                {r.n}× · {r.eta}
+              </span>
             </button>
-          </div>
-        ))}
-        <button
-          style={{ ...field, cursor: "pointer", width: "100%" }}
-          onClick={() =>
-            setIncidents([
-              ...incidents,
-              { ward: WARDS[0], type: INCIDENT_TYPES[0], pumps_committed: 1 },
-            ])
-          }
-        >
-          + add incident
-        </button>
-      </div>
-
-      <button
-        onClick={submit}
-        disabled={busy}
-        style={{
-          background: busy ? "#30363d" : "#1f6feb",
-          color: "#fff",
-          border: "none",
-          borderRadius: 6,
-          padding: "9px 12px",
-          cursor: busy ? "default" : "pointer",
-          fontWeight: 600,
-        }}
-      >
-        {busy ? "Running…" : "Run scenario"}
-      </button>
-      {result && (
-        <button
-          onClick={() => onResult(null)}
-          style={{ ...field, cursor: "pointer" }}
-        >
-          Reset to baseline
-        </button>
-      )}
-
-      {error && <div style={{ color: "#f85149", fontSize: 12 }}>{error}</div>}
-
-      {result && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ color: "#e6edf3", fontSize: 13 }}>{result.summary}</div>
-          {result.recommendations.map((r) => (
-            <div
-              key={r.recommendation_id ?? r.to_ward}
-              style={{
-                background: "#0d1117",
-                border: "1px solid #30363d",
-                borderLeft: `3px solid ${
-                  r.action === "pre_position" ? "#238636" : "#d29922"
-                }`,
-                borderRadius: 6,
-                padding: "8px 10px",
-              }}
-            >
-              <div style={{ color: "#e6edf3", fontWeight: 600, fontSize: 13 }}>
-                #{r.priority}{" "}
-                {r.action === "pre_position"
-                  ? `Move standby pump: ${r.from_station} → ${r.to_ward}`
-                  : `${r.action}: ${r.to_ward}`}
-              </div>
-              <div style={{ color: "#8b949e", fontSize: 12, marginTop: 3 }}>
-                {r.reason}
-              </div>
-            </div>
           ))}
         </div>
+      </div>
+
+      <button className="btn accent full" onClick={generate} disabled={running}>
+        {running ? "Generating…" : "Generate Day"}
+      </button>
+
+      {error && (
+        <div
+          className="mono"
+          style={{ color: "var(--accent-hot)", fontSize: 11 }}
+        >
+          {error}
+        </div>
       )}
-    </div>
+
+      {job && (
+        <div
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--line)",
+            borderLeft: `2px solid ${
+              job.status === "done"
+                ? "var(--r-green)"
+                : job.status === "error"
+                ? "var(--accent-hot)"
+                : "var(--accent)"
+            }`,
+            borderRadius: 8,
+            padding: "10px 12px",
+            fontSize: 12,
+          }}
+        >
+          <div
+            className="mono"
+            style={{
+              color: "var(--text)",
+              fontWeight: 500,
+              fontSize: 11,
+              letterSpacing: "0.04em",
+            }}
+          >
+            {job.message}
+          </div>
+          {job.status === "done" && (
+            <div
+              className="mono"
+              style={{ color: "var(--text-sec)", marginTop: 5, fontSize: 10 }}
+            >
+              {job.n_rollouts}× rollouts · {job.device ?? "GPU"}
+              {job.forecast_generated_at && (
+                <> · {job.forecast_generated_at}</>
+              )}
+              <div style={{ color: "var(--r-green)", marginTop: 3 }}>
+                Risk surface updated
+              </div>
+            </div>
+          )}
+          {job.status === "error" && job.error && (
+            <div
+              style={{
+                color: "var(--text-sec)",
+                marginTop: 5,
+                whiteSpace: "pre-wrap",
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+              }}
+            >
+              {job.error}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

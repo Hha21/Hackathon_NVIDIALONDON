@@ -4,9 +4,9 @@
 //   when a scenario is run its scenario_risk overlays the surface. If the
 //   backend is unreachable it falls back to a bundled forecast so the surface
 //   always renders (offline demo safety).
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getForecast, getHealth } from "./api";
-import type { ForecastResponse, Health, ScenarioResponse } from "./api";
+import type { ForecastResponse, Health } from "./api";
 import RiskMap3D from "./components/RiskMap3D";
 import TimelineScrubber from "./components/TimelineScrubber";
 import ScenarioPanel from "./components/ScenarioPanel";
@@ -25,9 +25,10 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [hour, setHour] = useState(20);
   const [incidentType, setIncidentType] = useState("all");
-  const [scenario, setScenario] = useState<ScenarioResponse | null>(null);
   const [offline, setOffline] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
+  // Bumped after a Spark regen to force a forecast + health refetch.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Spark inference status (device + model_loaded) for the NVIDIA panel.
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     let alive = true;
@@ -57,35 +58,23 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [incidentType]);
+  }, [incidentType, refreshKey]);
 
-  // ward_id -> scenario_risk overlay for the 3D surface, when a scenario is active.
-  const riskOverride = useMemo(() => {
-    if (!scenario) return undefined;
-    const m: Record<string, number> = {};
-    for (const d of scenario.forecast_delta) m[d.ward_id] = d.scenario_risk;
-    return m;
-  }, [scenario]);
-
-  const chip: React.CSSProperties = {
-    fontSize: 11,
-    borderRadius: 6,
-    padding: "3px 8px",
-    border: "1px solid",
-  };
+  // The scenario panel calls this once a Spark regen lands the new forecast JSON.
+  const onForecastUpdated = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr 380px",
+        gridTemplateColumns: "1fr 400px",
         gridTemplateRows: "auto 1fr auto",
         gridTemplateAreas: `"header header" "map panel" "footer panel"`,
         height: "100vh",
         width: "100vw",
-        background: "#0d1117",
-        color: "#e6edf3",
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        background: "var(--bg)",
+        color: "var(--text)",
+        fontFamily: "var(--font-body)",
         overflow: "hidden",
       }}
     >
@@ -96,48 +85,44 @@ export default function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 18px",
-          borderBottom: "1px solid #30363d",
+          padding: "14px 20px",
+          borderBottom: "1px solid var(--line)",
           gap: 12,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-          🔥 Foresight for Fires{" "}
-          <span style={{ color: "#8b949e", fontWeight: 400, fontSize: 15 }}>
-            — {forecast?.district ?? "Greater London"} risk surface
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span className="led" />
+          <h1
+            className="dot"
+            style={{
+              margin: 0,
+              fontSize: 24,
+              fontWeight: 900,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Foresight
+          </h1>
+          <span className="kicker" style={{ color: "var(--text-sec)" }}>
+            {forecast?.district ?? "Greater London"} / Risk Surface
           </span>
-        </h1>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {health?.model_loaded && (
-            <span
-              style={{ ...chip, color: "#58a6ff", borderColor: "#58a6ff" }}
-              title={`device: ${health.device}`}
-            >
-              ⚡ Spark inference · {health.device}
+            <span className="pill live" title={`device: ${health.device}`}>
+              <span className="led" />
+              Spark · {health.device}
             </span>
           )}
           {offline && (
-            <span style={{ ...chip, color: "#d29922", borderColor: "#d29922" }}>
-              offline · bundled data
-            </span>
+            <span className="pill">offline · bundled</span>
           )}
-          {scenario && (
-            <span style={{ ...chip, color: "#3fb950", borderColor: "#3fb950" }}>
-              scenario overlay active
-            </span>
-          )}
-          <span style={{ fontSize: 12, color: "#8b949e" }}>Incident type</span>
+          <span className="label">Incident</span>
           <select
+            className="field"
             value={incidentType}
             onChange={(e) => setIncidentType(e.target.value)}
-            style={{
-              background: "#0d1117",
-              color: "#e6edf3",
-              border: "1px solid #30363d",
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontSize: 13,
-            }}
           >
             {INCIDENT_FILTER.map((t) => (
               <option key={t} value={t}>
@@ -151,61 +136,110 @@ export default function App() {
       {/* 3D surface */}
       <main style={{ gridArea: "map", position: "relative", minHeight: 0, minWidth: 0 }}>
         {forecast ? (
-          <RiskMap3D wards={forecast.wards} hour={hour} riskOverride={riskOverride} />
+          <RiskMap3D wards={forecast.wards} hour={hour} />
         ) : (
-          <div style={{ padding: 24, color: "#8b949e" }}>Loading forecast…</div>
+          <div style={{ padding: 24, color: "var(--text-sec)" }} className="label">
+            Loading forecast…
+          </div>
         )}
         <Legend />
       </main>
 
-      {/* scenario panel */}
+      {/* right rail — top half: scenario, bottom half: agent */}
       <aside
         style={{
           gridArea: "panel",
-          borderLeft: "1px solid #30363d",
+          borderLeft: "1px solid var(--line)",
           minHeight: 0,
-          display: "flex",
+          display: "grid",
+          gridTemplateRows: "minmax(0, 1fr) minmax(0, 1fr)",
+          gap: 14,
           padding: 14,
         }}
       >
-        <ScenarioPanel result={scenario} onResult={setScenario} />
+        <ScenarioPanel onForecastUpdated={onForecastUpdated} />
+        <AgentPanel />
       </aside>
 
       {/* scrubber */}
-      <footer style={{ gridArea: "footer", padding: "10px 18px", borderTop: "1px solid #30363d" }}>
+      <footer style={{ gridArea: "footer", padding: "12px 20px", borderTop: "1px solid var(--line)" }}>
         <TimelineScrubber hour={hour} setHour={setHour} />
       </footer>
     </div>
   );
 }
 
+// Reserved space for the dispatch agent — wired up separately.
+function AgentPanel() {
+  return (
+    <section
+      className="panel nt-scroll"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        overflowY: "auto",
+        padding: 16,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="led" />
+        <span className="kicker">Dispatch Agent</span>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--text-mut)",
+          textAlign: "center",
+        }}
+        className="label"
+      >
+        Agent console — coming soon
+      </div>
+    </section>
+  );
+}
+
 function Legend() {
   return (
     <div
+      className="panel"
       style={{
         position: "absolute",
-        bottom: 14,
-        left: 14,
-        background: "rgba(13,17,23,0.85)",
-        border: "1px solid #30363d",
-        borderRadius: 8,
-        padding: "8px 10px",
-        fontSize: 11,
-        color: "#8b949e",
+        bottom: 16,
+        left: 16,
+        padding: "12px 14px",
+        background: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(8px)",
       }}
     >
-      <div style={{ marginBottom: 5, color: "#e6edf3" }}>Predicted risk</div>
+      <div className="label" style={{ marginBottom: 8 }}>
+        Predicted Risk
+      </div>
       <div
         style={{
-          width: 150,
-          height: 8,
-          borderRadius: 4,
-          background: "linear-gradient(90deg, rgb(40,110,220), rgb(240,220,40), rgb(220,40,40))",
+          width: 160,
+          height: 6,
+          borderRadius: 3,
+          background:
+            "linear-gradient(90deg, rgb(40,110,220), rgb(240,220,40), rgb(220,40,40))",
         }}
       />
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-        <span>low</span>
-        <span>high</span>
+      <div
+        className="mono"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 5,
+          fontSize: 10,
+          color: "var(--text-mut)",
+        }}
+      >
+        <span>LOW</span>
+        <span>HIGH</span>
       </div>
     </div>
   );
