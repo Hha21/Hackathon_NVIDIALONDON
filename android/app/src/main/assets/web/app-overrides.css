@@ -35,9 +35,9 @@ body {
 .recmap .mlmap {
   position: absolute; left: 0; right: 0; top: -64px; height: 284px; z-index: 1;
   border-radius: 24px 24px 0 0; overflow: hidden; background: transparent;
-  /* radial fade so the city reads as a floating diorama island */
-  -webkit-mask-image: radial-gradient(128% 100% at 50% 46%, #000 56%, transparent 90%);
-  mask-image: radial-gradient(128% 100% at 50% 46%, #000 56%, transparent 90%);
+  /* radial fade so the city reads as a floating diorama island with dark margins */
+  -webkit-mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
+  mask-image: radial-gradient(104% 86% at 50% 44%, #000 48%, transparent 80%);
 }
 .rec-card { overflow: visible !important; }
 /* result card map (Assistant) — same: bottom aligned so it doesn't cover the text */

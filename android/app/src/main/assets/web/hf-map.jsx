@@ -75,7 +75,7 @@
         const near = (lon, lat) => wards.some((w) => {
           const dx = (lon - w.lon) * Math.cos(lat * Math.PI / 180) * 111320;
           const dy = (lat - w.lat) * 110540;
-          return Math.hypot(dx, dy) < 1000;
+          return Math.hypot(dx, dy) < 200;
         });
         const feats = [];
         (j.elements || []).forEach((w) => {
@@ -197,14 +197,14 @@
       map.on("load", () => {
         const c = map.getCanvas(), ct = map.getContainer();
         console.log("MAPLOAD preset=" + preset + " style=" + map.isStyleLoaded() + " canvas=" + c.width + "x" + c.height + " ctr=" + ct.clientWidth + "x" + ct.clientHeight);
-        add3DBuildings(map, isHeat ? 12.5 : 13, !isHeat, isHeat ? 4 : 11);   // tall on the card, short on the globe (so streets/hydrants show)
+        add3DBuildings(map, isHeat ? 12.5 : 13, !isHeat, isHeat ? 4 : 15);   // tall skyline on the card, short on the globe (so streets/hydrants show)
         // Card: transparent sky so the blurred backdrop shows behind the buildings.
         try { if (map.getLayer("background")) map.setPaintProperty("background", "background-color", isHeat ? "#0A0B0D" : "rgba(0,0,0,0)"); } catch (e) {}
         // On the card, hide labels so it's clean blocks bleeding out of the card.
         if (!isHeat) {
           try { map.getStyle().layers.forEach((l) => { if (l.type === "symbol") map.setLayoutProperty(l.id, "visibility", "none"); }); } catch (e) {}
         }
-        if (isHeat) { addHotspots(map); addHydrants(map); }   // hydrants only on the globe
+        if (isHeat) { addHotspots(map); addHydrants(map); }   // hydrants (200m of wards) only on the globe
         else addRoute(map, LEWISHAM);   // route starts at the station
         map.resize();
       });

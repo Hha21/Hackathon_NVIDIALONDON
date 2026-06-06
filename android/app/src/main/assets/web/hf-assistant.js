@@ -1,5 +1,6 @@
-// hf-assistant.jsx — Voice/AI assistant. Orb only when idle; clean bounded layout (no overflow);
-// type-instead keyboard option; mic icon only (no "tap to talk" text).
+// hf-assistant.jsx — the orb IS the live ElevenLabs voice agent (James).
+// Tap the mic to start a real conversation; the orb reacts (listening/speaking),
+// the transcript shows the real exchange. Keyboard icon to type instead.
 
 (function () {
   const {
@@ -7,12 +8,7 @@
     useRef,
     useEffect
   } = React;
-  const SCRIPTS = {
-    "What's hot right now?": "Brockley is your highest risk tonight — 0.78 around 19:00, mostly dwelling fires.",
-    "Why Brockley?": "A recent dwelling-fire pattern plus the dry spell. Risk peaks near 19:00, so I'd pre-position.",
-    "Risk in Lewisham tonight?": "Lewisham itself is medium, about 0.46. Brockley next door is the real hotspot."
-  };
-  const PROMPTS = Object.keys(SCRIPTS);
+  const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
   function ResultCard({
     goGlobe
   }) {
@@ -63,51 +59,104 @@
   function Assistant({
     goGlobe
   }) {
-    const [mode, setMode] = useState("idle"); // idle | listening | thinking | speaking
+    const [mode, setMode] = useState("idle"); // idle | connecting | listening | thinking | speaking
     const [turns, setTurns] = useState([]);
     const [showResult, setShowResult] = useState(false);
     const [typing, setTyping] = useState(false);
     const [text, setText] = useState("");
-    const timers = useRef([]);
-    const clearAll = () => {
-      timers.current.forEach(clearTimeout);
-      timers.current = [];
-    };
-    useEffect(() => clearAll, []);
-    const active = mode !== "idle" || turns.length > 0;
-    const statusTxt = mode === "listening" ? "Listening…" : mode === "thinking" ? "Thinking…" : mode === "speaking" ? "Speaking…" : "";
-    const run = q => {
-      clearAll();
-      setTyping(false);
-      setText("");
-      setTurns(t => [...t, {
-        who: "you",
-        text: q
+    const convRef = useRef(null);
+    const pending = useRef(null);
+    const addTurn = (who, t) => {
+      if (t) setTurns(p => [...p, {
+        who,
+        text: t
       }]);
-      setMode("listening");
-      timers.current.push(setTimeout(() => setMode("thinking"), 800));
-      timers.current.push(setTimeout(() => {
-        setMode("speaking");
-        setTurns(t => [...t, {
-          who: "tool",
-          text: "showed Brockley"
-        }, {
-          who: "ai",
-          text: SCRIPTS[q] || SCRIPTS[PROMPTS[0]]
-        }]);
-        setShowResult(true);
-      }, 1800));
-      timers.current.push(setTimeout(() => setMode("idle"), 4600));
     };
-    const tapMic = () => {
-      if (mode !== "idle") {
-        clearAll();
+    useEffect(() => () => {
+      try {
+        convRef.current && convRef.current.endSession();
+      } catch (e) {}
+    }, []);
+    const orbState = mode === "speaking" ? "speaking" : mode === "listening" ? "listening" : mode === "thinking" || mode === "connecting" ? "thinking" : "idle";
+    const caption = {
+      idle: "Tap to talk to James",
+      connecting: "Connecting…",
+      listening: "Listening…",
+      thinking: "Thinking…",
+      speaking: "Speaking"
+    }[mode];
+    const live = mode !== "idle";
+    async function start(promptText) {
+      if (live) return;
+      pending.current = promptText || null;
+      if (!window.ElevenConversation) {
+        addTurn("ai", "Voice agent is still loading — try again in a moment.");
+        return;
+      }
+      setMode("connecting");
+      try {
+        try {
+          await navigator.mediaDevices.getUserMedia({
+            audio: true
+          });
+        } catch (e) {}
+        const conv = await window.ElevenConversation.startSession({
+          agentId: AGENT_ID,
+          connectionType: "webrtc",
+          onConnect: () => {
+            setMode("listening");
+            if (pending.current) {
+              const q = pending.current;
+              pending.current = null;
+              addTurn("you", q);
+              try {
+                conv.sendUserMessage && conv.sendUserMessage(q);
+              } catch (e) {}
+            }
+          },
+          onDisconnect: () => setMode("idle"),
+          onError: e => {
+            console.log("EL error", e);
+          },
+          onModeChange: m => {
+            const mm = m && m.mode || m;
+            setMode(mm === "speaking" ? "speaking" : "listening");
+          },
+          onMessage: msg => {
+            const t = msg && (msg.message || msg.text) || "";
+            const src = msg && msg.source || "ai";
+            if (!t) return;
+            addTurn(src === "user" ? "you" : "ai", t);
+            if (/brockley/i.test(t)) setShowResult(true);
+          }
+        });
+        convRef.current = conv;
+      } catch (e) {
+        console.log("EL start fail", e);
         setMode("idle");
-      } else run(PROMPTS[0]);
+        addTurn("ai", "Couldn't reach the voice agent (check connection).");
+      }
+    }
+    function stop() {
+      try {
+        convRef.current && convRef.current.endSession();
+      } catch (e) {}
+      convRef.current = null;
+      setMode("idle");
+    }
+    const tapMic = () => {
+      if (live) stop();else start();
     };
-    const send = () => {
+    const sendText = () => {
       const q = text.trim();
-      if (q) run(q);
+      if (!q) return;
+      setText("");
+      addTurn("you", q);
+      if (convRef.current && convRef.current.sendUserMessage) {
+        try {
+          convRef.current.sendUserMessage(q);
+        } catch (e) {}
+      } else start(q);
     };
     return /*#__PURE__*/React.createElement("div", {
       className: "view view-asst"
@@ -115,36 +164,37 @@
       className: "asst-bg"
     }), /*#__PURE__*/React.createElement("div", {
       className: "asst-bg-tint"
-    }), /*#__PURE__*/React.createElement("elevenlabs-convai", {
-      "agent-id": "agent_1001ktee37rcfy69khepf9j23cdf"
     }), /*#__PURE__*/React.createElement("div", {
       className: "asst-body"
-    }, !active ? /*#__PURE__*/React.createElement("div", {
-      className: "asst-idle"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "orb-wrap",
+      style: {
+        marginTop: 40
+      }
     }, /*#__PURE__*/React.createElement(Orb, {
-      state: "idle",
+      state: orbState,
       size: 150
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "prompts"
-    }, PROMPTS.map(p => /*#__PURE__*/React.createElement("button", {
-      key: p,
-      className: "prompt-chip",
-      onClick: () => run(p)
-    }, p)))) : /*#__PURE__*/React.createElement("div", {
-      className: "asst-convo"
-    }, statusTxt ? /*#__PURE__*/React.createElement("div", {
+    })), /*#__PURE__*/React.createElement("div", {
       className: "asst-status"
-    }, statusTxt) : null, showResult ? /*#__PURE__*/React.createElement(ResultCard, {
+    }, caption), showResult ? /*#__PURE__*/React.createElement(ResultCard, {
       goGlobe: goGlobe
-    }) : null, /*#__PURE__*/React.createElement("div", {
+    }) : null, turns.length === 0 ? /*#__PURE__*/React.createElement("div", {
+      className: "prompts"
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "prompt-chip",
+      onClick: () => start("What's hot right now?")
+    }, "What's hot right now?"), /*#__PURE__*/React.createElement("button", {
+      className: "prompt-chip",
+      onClick: () => start("Why Brockley?")
+    }, "Why Brockley?"), /*#__PURE__*/React.createElement("button", {
+      className: "prompt-chip",
+      onClick: () => start("Risk in Lewisham tonight?")
+    }, "Risk in Lewisham tonight?")) : /*#__PURE__*/React.createElement("div", {
       className: "transcript"
-    }, turns.map((t, i) => t.who === "tool" ? /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "toolchip"
-    }, t.text) : /*#__PURE__*/React.createElement("div", {
+    }, turns.map((t, i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       className: "bubble " + t.who
-    }, t.text))))), /*#__PURE__*/React.createElement("div", {
+    }, t.text)))), /*#__PURE__*/React.createElement("div", {
       className: "asst-dock"
     }, typing ? /*#__PURE__*/React.createElement("div", {
       className: "asst-input"
@@ -154,11 +204,11 @@
       placeholder: "Type a question\u2026",
       onChange: e => setText(e.target.value),
       onKeyDown: e => {
-        if (e.key === "Enter") send();
+        if (e.key === "Enter") sendText();
       }
     }), /*#__PURE__*/React.createElement("button", {
       className: "asst-send",
-      onClick: send,
+      onClick: sendText,
       "aria-label": "Send"
     }, "\u2192"), /*#__PURE__*/React.createElement("button", {
       className: "asst-kb2",
@@ -190,10 +240,10 @@
       d: "M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 12.6h.01M9.5 12.6h.01M13 12.6h.01M16.5 12.6h.01M8 15.6h8",
       strokeLinecap: "round"
     }))), /*#__PURE__*/React.createElement("button", {
-      className: "mic-btn" + (mode !== "idle" ? " live" : ""),
+      className: "mic-btn" + (live ? " live" : ""),
       onClick: tapMic,
       "aria-label": "Talk"
-    }, mode !== "idle" ? /*#__PURE__*/React.createElement("span", {
+    }, live ? /*#__PURE__*/React.createElement("span", {
       className: "mic-stop"
     }) : /*#__PURE__*/React.createElement("svg", {
       viewBox: "0 0 24 24",

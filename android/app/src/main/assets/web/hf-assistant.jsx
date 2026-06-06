@@ -1,15 +1,10 @@
-// hf-assistant.jsx — Voice/AI assistant. Orb only when idle; clean bounded layout (no overflow);
-// type-instead keyboard option; mic icon only (no "tap to talk" text).
+// hf-assistant.jsx — the orb IS the live ElevenLabs voice agent (James).
+// Tap the mic to start a real conversation; the orb reacts (listening/speaking),
+// the transcript shows the real exchange. Keyboard icon to type instead.
 
 (function () {
   const { useState, useRef, useEffect } = React;
-
-  const SCRIPTS = {
-    "What's hot right now?": "Brockley is your highest risk tonight — 0.78 around 19:00, mostly dwelling fires.",
-    "Why Brockley?": "A recent dwelling-fire pattern plus the dry spell. Risk peaks near 19:00, so I'd pre-position.",
-    "Risk in Lewisham tonight?": "Lewisham itself is medium, about 0.46. Brockley next door is the real hotspot.",
-  };
-  const PROMPTS = Object.keys(SCRIPTS);
+  const AGENT_ID = "agent_1001ktee37rcfy69khepf9j23cdf";
 
   function ResultCard({ goGlobe }) {
     const route = () => window.routeTo("Brockley standby", 51.464, -0.036);
@@ -31,57 +26,75 @@
   }
 
   function Assistant({ goGlobe }) {
-    const [mode, setMode] = useState("idle"); // idle | listening | thinking | speaking
+    const [mode, setMode] = useState("idle"); // idle | connecting | listening | thinking | speaking
     const [turns, setTurns] = useState([]);
     const [showResult, setShowResult] = useState(false);
     const [typing, setTyping] = useState(false);
     const [text, setText] = useState("");
-    const timers = useRef([]);
-    const clearAll = () => { timers.current.forEach(clearTimeout); timers.current = []; };
-    useEffect(() => clearAll, []);
+    const convRef = useRef(null);
+    const pending = useRef(null);
 
-    const active = mode !== "idle" || turns.length > 0;
-    const statusTxt = mode === "listening" ? "Listening…" : mode === "thinking" ? "Thinking…" : mode === "speaking" ? "Speaking…" : "";
+    const addTurn = (who, t) => { if (t) setTurns((p) => [...p, { who, text: t }]); };
+    useEffect(() => () => { try { convRef.current && convRef.current.endSession(); } catch (e) {} }, []);
 
-    const run = (q) => {
-      clearAll(); setTyping(false); setText("");
-      setTurns((t) => [...t, { who: "you", text: q }]);
-      setMode("listening");
-      timers.current.push(setTimeout(() => setMode("thinking"), 800));
-      timers.current.push(setTimeout(() => {
-        setMode("speaking");
-        setTurns((t) => [...t, { who: "tool", text: "showed Brockley" }, { who: "ai", text: SCRIPTS[q] || SCRIPTS[PROMPTS[0]] }]);
-        setShowResult(true);
-      }, 1800));
-      timers.current.push(setTimeout(() => setMode("idle"), 4600));
+    const orbState = mode === "speaking" ? "speaking" : mode === "listening" ? "listening" : mode === "thinking" || mode === "connecting" ? "thinking" : "idle";
+    const caption = { idle: "Tap to talk to James", connecting: "Connecting…", listening: "Listening…", thinking: "Thinking…", speaking: "Speaking" }[mode];
+    const live = mode !== "idle";
+
+    async function start(promptText) {
+      if (live) return;
+      pending.current = promptText || null;
+      if (!window.ElevenConversation) { addTurn("ai", "Voice agent is still loading — try again in a moment."); return; }
+      setMode("connecting");
+      try {
+        try { await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) {}
+        const conv = await window.ElevenConversation.startSession({
+          agentId: AGENT_ID,
+          connectionType: "webrtc",
+          onConnect: () => { setMode("listening"); if (pending.current) { const q = pending.current; pending.current = null; addTurn("you", q); try { conv.sendUserMessage && conv.sendUserMessage(q); } catch (e) {} } },
+          onDisconnect: () => setMode("idle"),
+          onError: (e) => { console.log("EL error", e); },
+          onModeChange: (m) => { const mm = (m && m.mode) || m; setMode(mm === "speaking" ? "speaking" : "listening"); },
+          onMessage: (msg) => {
+            const t = (msg && (msg.message || msg.text)) || "";
+            const src = (msg && msg.source) || "ai";
+            if (!t) return;
+            addTurn(src === "user" ? "you" : "ai", t);
+            if (/brockley/i.test(t)) setShowResult(true);
+          },
+        });
+        convRef.current = conv;
+      } catch (e) { console.log("EL start fail", e); setMode("idle"); addTurn("ai", "Couldn't reach the voice agent (check connection)."); }
+    }
+    function stop() { try { convRef.current && convRef.current.endSession(); } catch (e) {} convRef.current = null; setMode("idle"); }
+    const tapMic = () => { if (live) stop(); else start(); };
+    const sendText = () => {
+      const q = text.trim(); if (!q) return; setText("");
+      addTurn("you", q);
+      if (convRef.current && convRef.current.sendUserMessage) { try { convRef.current.sendUserMessage(q); } catch (e) {} }
+      else start(q);
     };
-    const tapMic = () => { if (mode !== "idle") { clearAll(); setMode("idle"); } else run(PROMPTS[0]); };
-    const send = () => { const q = text.trim(); if (q) run(q); };
 
     return (
       <div className="view view-asst">
         <div className="asst-bg" />
         <div className="asst-bg-tint" />
-        {/* Live ElevenLabs conversational agent (James) */}
-        <elevenlabs-convai agent-id="agent_1001ktee37rcfy69khepf9j23cdf"></elevenlabs-convai>
 
         <div className="asst-body">
-          {!active ? (
-            <div className="asst-idle">
-              <Orb state="idle" size={150} />
-              <div className="prompts">
-                {PROMPTS.map((p) => <button key={p} className="prompt-chip" onClick={() => run(p)}>{p}</button>)}
-              </div>
+          <div className="orb-wrap" style={{ marginTop: 40 }}><Orb state={orbState} size={150} /></div>
+          <div className="asst-status">{caption}</div>
+
+          {showResult ? <ResultCard goGlobe={goGlobe} /> : null}
+
+          {turns.length === 0 ? (
+            <div className="prompts">
+              <button className="prompt-chip" onClick={() => start("What's hot right now?")}>What's hot right now?</button>
+              <button className="prompt-chip" onClick={() => start("Why Brockley?")}>Why Brockley?</button>
+              <button className="prompt-chip" onClick={() => start("Risk in Lewisham tonight?")}>Risk in Lewisham tonight?</button>
             </div>
           ) : (
-            <div className="asst-convo">
-              {statusTxt ? <div className="asst-status">{statusTxt}</div> : null}
-              {showResult ? <ResultCard goGlobe={goGlobe} /> : null}
-              <div className="transcript">
-                {turns.map((t, i) => t.who === "tool"
-                  ? <div key={i} className="toolchip">{t.text}</div>
-                  : <div key={i} className={"bubble " + t.who}>{t.text}</div>)}
-              </div>
+            <div className="transcript">
+              {turns.map((t, i) => <div key={i} className={"bubble " + t.who}>{t.text}</div>)}
             </div>
           )}
         </div>
@@ -90,8 +103,8 @@
           {typing ? (
             <div className="asst-input">
               <input autoFocus value={text} placeholder="Type a question…"
-                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-              <button className="asst-send" onClick={send} aria-label="Send">→</button>
+                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendText(); }} />
+              <button className="asst-send" onClick={sendText} aria-label="Send">→</button>
               <button className="asst-kb2" onClick={() => { setTyping(false); setText(""); }} aria-label="Close">✕</button>
             </div>
           ) : (
@@ -102,8 +115,8 @@
                   <path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 12.6h.01M9.5 12.6h.01M13 12.6h.01M16.5 12.6h.01M8 15.6h8" strokeLinecap="round" />
                 </svg>
               </button>
-              <button className={"mic-btn" + (mode !== "idle" ? " live" : "")} onClick={tapMic} aria-label="Talk">
-                {mode !== "idle" ? <span className="mic-stop" /> : (
+              <button className={"mic-btn" + (live ? " live" : "")} onClick={tapMic} aria-label="Talk">
+                {live ? <span className="mic-stop" /> : (
                   <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" /></svg>
                 )}
                 {mode === "listening" ? <span className="mic-wave" /> : null}
