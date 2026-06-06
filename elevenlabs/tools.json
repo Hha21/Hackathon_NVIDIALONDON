@@ -34,6 +34,21 @@
             "type": "client",
             "config": "tool_configs/ward_trend.json",
             "id": "tool_4201ktexe74qesbb9am1x5temnga"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/scrub_time.json",
+            "id": "tool_2501ktf1atcreddsz1hsjszntt5k"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/filter_incident.json",
+            "id": "tool_1201ktf1atm0frg887bvrkkdm1rv"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/compare_split.json",
+            "id": "tool_6801ktf1atrpfp1bthmzs5g4z3ee"
         }
     ]
 }

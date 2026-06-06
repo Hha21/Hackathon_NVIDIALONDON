@@ -163,6 +163,37 @@ WardForecast = { ward_id, ward_name, lat, lon,
 
 ---
 
+## 5b. Group E — voice map control detail
+
+Pure client tools — they only push existing React state, no data returned, so
+`expects_response: false` (snappier; agent just confirms verbally).
+
+1. **Props:** `VoiceAgent` needs the same setters `App.tsx` already wires to the
+   UI controls. Pass them as callbacks (don't reach into the map directly):
+   - `onScrubTime(hour: number)` → `setHour(clamp(hour, 0, 23))` (the same setter
+     the timeline scrubber uses).
+   - `onFilterIncident(type: string | null)` → `setIncidentFilter(type)` (the same
+     state the dropdown sets; `null`/"all" clears it).
+   - reuse `onHighlightWards(ids)` from §5.3 for `compare_split`.
+2. **`scrub_time`:** resolve a spoken hour to 0–23 (handle "2am", "14:00",
+   "2 in the afternoon" → let the agent normalise to an int in the prompt; clamp
+   in the handler as a guard). Call `onScrubTime`, `push()` a log line, return
+   "" / short ack.
+3. **`filter_incident`:** map the spoken type to a valid `dominant_type` value
+   (fuzzy-match against the known incident types; pass `null` for "all" /
+   "clear filter"). Call `onFilterIncident`.
+4. **`compare_split`:** resolve both ward names via existing `matchWard()`, then
+   `onHighlightWards([idA, idB])`. Same ring path as `rank_hotspots`, just two
+   ids — dedupe per §7.
+5. **EL tools:** create all 3 with `--type client`, `expects_response: false`,
+   camelCase params (`hour`, `type`, `wardA`, `wardB`); attach ids; describe in
+   the agent prompt (tell it to normalise hour → int and incident phrase → type);
+   push.
+
+> **Casing guard:** same §4 gotcha — keys AND the `required` array both camelCase.
+
+---
+
 ## 6. Verification
 
 - `cd frontend && npx tsc -b` clean; `npx vite build` clean.

@@ -18,8 +18,36 @@ export type VoiceAgentProps = {
   onFocus: (wardId: string) => void;
   onReset: () => void;
   onHighlight: (minRisk: number) => void;
-  // rank_hotspots rings the top-N wards on the map.
+  // rank_hotspots / compare_split ring an explicit set of wards on the map.
   onHighlightWards: (ids: string[]) => void;
+  // Group E (map control): move the scrubber + set the incident filter by voice.
+  onScrubTime: (hour: number) => void;
+  onFilterIncident: (type: string) => void;
+};
+
+// Incident filter values the dropdown accepts (mirror of App's INCIDENT_FILTER).
+// Spoken phrases fuzzy-map onto these; anything else falls back to "all".
+const INCIDENT_TYPES = [
+  "all",
+  "dwelling_fire",
+  "outdoor_fire",
+  "false_alarm",
+  "special_service",
+] as const;
+
+// Resolve a spoken incident phrase ("dwelling fires", "false alarms", "clear")
+// to a valid filter value. Substring match both directions; "all"/"clear" reset.
+const matchIncident = (raw: string): string => {
+  const q = (raw ?? "").toLowerCase().replace(/[_\s]+/g, " ").trim();
+  if (!q || /\b(all|clear|reset|everything|any)\b/.test(q)) return "all";
+  const norm = (t: string) => t.replace(/_/g, " ");
+  return (
+    INCIDENT_TYPES.find((t) => norm(t) === q) ??
+    INCIDENT_TYPES.find((t) => t !== "all" && (q.includes(norm(t)) || norm(t).includes(q))) ??
+    // single-word hints: "dwelling", "outdoor", "alarm", "special"/"service"
+    INCIDENT_TYPES.find((t) => t !== "all" && norm(t).split(" ").some((w) => q.includes(w))) ??
+    "all"
+  );
 };
 
 const AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID as string | undefined;
@@ -43,6 +71,8 @@ export default function VoiceAgent({
   onReset,
   onHighlight,
   onHighlightWards,
+  onScrubTime,
+  onFilterIncident,
 }: VoiceAgentProps) {
   const [log, setLog] = useState<LogEntry[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -176,6 +206,41 @@ export default function VoiceAgent({
     return `${w.ward_name}: now ${pct(now.risk_score)} at ${hh(hour)}. Peaks ${pct(
       peak.risk_score
     )} around ${hh(peak.hour)}, lowest ${pct(trough.risk_score)} at ${hh(trough.hour)}.`;
+  });
+
+  // --- Group E: map control by voice (push UI state; fire-and-forget) ---
+  useConversationClientTool("scrub_time", (p: { hour?: number }) => {
+    const raw = typeof p?.hour === "number" ? p.hour : NaN;
+    if (!Number.isFinite(raw)) {
+      push({ kind: "action", text: `bad hour "${p?.hour}"` });
+      return `I need an hour between 0 and 23.`;
+    }
+    const h = Math.max(0, Math.min(23, Math.round(raw)));
+    onScrubTime(h);
+    push({ kind: "action", text: `scrub → ${hh(h)}` });
+    return `Showing ${hh(h)}.`;
+  });
+
+  useConversationClientTool("filter_incident", (p: { type?: string }) => {
+    const t = matchIncident(p?.type ?? "");
+    onFilterIncident(t);
+    push({ kind: "action", text: t === "all" ? "filter → all" : `filter → ${fmtType(t)}` });
+    return t === "all" ? `Showing all incident types.` : `Filtering to ${fmtType(t)}.`;
+  });
+
+  useConversationClientTool("compare_split", (p: { wardA?: string; wardB?: string }) => {
+    const a = matchWard(p?.wardA ?? "");
+    const b = matchWard(p?.wardB ?? "");
+    if (!a || !b) {
+      const miss = !a ? p?.wardA : p?.wardB;
+      push({ kind: "action", text: `no match for "${miss}"` });
+      return `No ward matching "${miss}".`;
+    }
+    // dedupe in case both names resolve to the same ward_id (see plan §7)
+    const ids = a.ward_id === b.ward_id ? [a.ward_id] : [a.ward_id, b.ward_id];
+    onHighlightWards(ids);
+    push({ kind: "action", text: `split → ${a.ward_name} + ${b.ward_name}` });
+    return `Ringing ${a.ward_name} and ${b.ward_name}.`;
   });
 
   const conversation = useConversation({

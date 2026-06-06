@@ -94,10 +94,22 @@ export default function App() {
     [forecast, hour]
   );
 
-  // Voice "rank_hotspots": ring an explicit set of ward ids on the map.
+  // Voice "rank_hotspots" / "compare_split": ring an explicit set of ward ids.
   const onHighlightWards = useCallback((ids: string[]) => {
     setFocusWardId(null);
     setHighlightSet(new Set(ids));
+  }, []);
+
+  // ---- Group E: map control by voice (drive the same state the UI controls) ----
+  // Voice "scrub_time": move the timeline scrubber (same setter the slider uses).
+  const onScrubTime = useCallback((h: number) => {
+    setHour(Math.max(0, Math.min(23, Math.round(h))));
+  }, []);
+
+  // Voice "filter_incident": set the incident dropdown (refetches the forecast,
+  // same as a manual change). Must be one of INCIDENT_FILTER; "all" clears it.
+  const onFilterIncident = useCallback((type: string) => {
+    setIncidentType(INCIDENT_FILTER.includes(type) ? type : "all");
   }, []);
 
   return (
@@ -207,6 +219,8 @@ export default function App() {
           onReset={onReset}
           onHighlight={onHighlight}
           onHighlightWards={onHighlightWards}
+          onScrubTime={onScrubTime}
+          onFilterIncident={onFilterIncident}
         />
       </aside>
 

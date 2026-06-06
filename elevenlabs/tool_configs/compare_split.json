@@ -1,0 +1,25 @@
+{
+    "name": "compare_split",
+    "description": "Ring two named London wards on the map at the same time for a side-by-side visual comparison. Use when the operator wants to see, highlight, or put two areas up against each other on the map (as opposed to compare_wards, which speaks the numbers). The map fuzzy-matches each name, so pass them exactly as the operator says.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "wardA": {
+                "type": "string",
+                "description": "First London ward to ring, e.g. Catford."
+            },
+            "wardB": {
+                "type": "string",
+                "description": "Second London ward to ring, e.g. Lewisham."
+            }
+        },
+        "required": ["wardA", "wardB"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}

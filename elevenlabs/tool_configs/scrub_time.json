@@ -1,0 +1,21 @@
+{
+    "name": "scrub_time",
+    "description": "Move the map's timeline scrubber to a specific hour so the operator sees the forecast at that time of day. Pass the hour as an integer 0-23 (normalise spoken times yourself: '2am' -> 2, '2pm' -> 14, 'midnight' -> 0, 'half eight in the evening' -> 20). Call whenever the operator asks to jump to, show, or scrub to a time.",
+    "type": "client",
+    "expects_response": false,
+    "response_timeout_secs": 30,
+    "parameters": {
+        "type": "object",
+        "description": "Parameters for the client tool",
+        "properties": {
+            "hour": {
+                "type": "number",
+                "description": "Hour of day to show on the map, as an integer 0-23 (0 = midnight, 23 = 11pm)."
+            }
+        },
+        "required": ["hour"]
+    },
+    "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+    }
+}
