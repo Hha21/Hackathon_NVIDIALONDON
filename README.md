@@ -409,16 +409,6 @@ The seams for real-time operation already exist; lighting them up is incremental
 
 > **Why DGX Spark, not cloud.** Live pump status and active incidents are exactly the data that must not leave the brigade's environment. Foresight runs preprocessing, training, inference, and the NL assistant entirely on one local box — so the real-time path is private by construction, with 128 GB unified memory holding the model + geospatial scene + corpus resident, zero offloading.
 
-## Known Limitations
-
-- **Globe tab on Android** uses client-side simulated risk; `/api/mobile/heatmap` returns the real forecast and wiring it is a single fetch.
-- **Crew count** is a static value in the Android UI; not yet part of the `MobileState` schema.
-- **Ward geometry** uses centroid lat/lon for column placement, not full polygon outlines; ONS boundary GeoJSON would enable true ward shading. ~150 vocab wards lack centroids and are absent from the rendered surface (625 of 775 shown).
-- **Live weather** is fetched on demand (Open-Meteo) but not yet on an automatic schedule.
-- **Real-time operational data** is the planned expansion described above, not part of the current MVP.
-
----
-
 ## Team
 
 | Name | Role | Contact |
@@ -426,5 +416,3 @@ The seams for real-time operation already exist; lighting them up is incremental
 | Harry Allen | Model / Data Lead | harry.allen-3@postgrad.manchester.ac.uk |
 | Patrick Fan | Backend + Web Frontend Lead | fanpatrick8@gmail.com |
 | Pranit Sehgal | Android + Dispatch / Voice Lead | pranitsehgal@gmail.com |
-</content>
-</invoke>
