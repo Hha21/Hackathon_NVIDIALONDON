@@ -13,14 +13,15 @@ import java.util.concurrent.TimeUnit
 /**
  * Backend base URL.
  *
- *  - Real phone on the same Wi-Fi as the laptop:  http://<LAPTOP_LAN_IP>:8000/
- *    (find it with `ipconfig getifaddr en0` on the Mac, e.g. http://192.168.1.42:8000/)
- *  - Android emulator (host loopback):            http://10.0.2.2:8000/
+ *  - Real phone on the same Wi-Fi as the laptop:  http://<LAPTOP_LAN_IP>:8008/
+ *    (find it with `ipconfig getifaddr en0` on the Mac, e.g. http://10.18.216.107:8008/)
+ *  - Android emulator (host loopback):            http://10.0.2.2:8008/
  *
- * Keep the trailing slash. Change this one constant to repoint the whole app.
+ * Backend runs on :8008 (Docker squats :8000). Keep the trailing slash.
+ * Change this one constant to repoint the whole app.
  */
 object Backend {
-    const val BASE_URL = "http://10.0.2.2:8000/"
+    const val BASE_URL = "http://10.18.216.107:8008/"
 }
 
 interface ForesightApi {
