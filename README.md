@@ -2,6 +2,10 @@
 
 A locally-running spatiotemporal **decision-support system** for London Fire Brigade operations, inspired by the NHS Foresight AI project (Kraljevic et al., *Lancet Digital Health* 2024). We treat each fire station's call history as a token sequence and train a GPT-2 scale causal language model from scratch to learn the statistical rhythm of London's fire incidents, producing a dynamic ward-level risk surface for the next 24 hours — exposed through a 3D web dashboard, an Android mock-dispatch app, and a local natural-language voice assistant.
 
+<img width="1496" height="754" alt="image" src="https://github.com/user-attachments/assets/199f09fb-e0c1-468b-ac55-016ff80a9e73" />
+<img width="344" height="779" alt="image" src="https://github.com/user-attachments/assets/d62dda07-08e4-4457-809c-cc8793ff7770" />
+
+
 Built at **NVIDIA Hack London**. Track: **Urban Operations**. Runs entirely on **DGX Spark** — no cloud exposure of operational data.
 
 > **What it is for.** Foresight is a **training, planning, and readiness tool** today, and a **real-time dispatch tool** the moment it is plugged into a live feed. As a planning tool it lets commanders rehearse operational scenarios — pump shortages, weather swings, Bonfire Night — and *estimate readiness* before a shift: "if these three pumps are committed at 20:00, which wards lose cover, and where should standby go?" The same engine, fed live pump availability and active incidents instead of replayed history, becomes a real-time dispatch advisor that learns from what actually happens.
